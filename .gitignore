@@ -6,3 +6,4 @@
 !*.json
 !*.txt
 !.gitignore
+!*.sh

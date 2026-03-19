@@ -1,0 +1,3 @@
+[submodule "RealTimeAudioRecorder"]
+	path = RealTimeAudioRecorder
+	url = git@github.com:moz-exe/RealTimeAudioRecorder.git
