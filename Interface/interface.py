@@ -39,6 +39,9 @@ def init_model():
     model.eval() # Mode évaluation
 
 def predict_vishing(text):
+    if tokenizer is None or model is None:
+        raise RuntimeError("Le modèle n'est pas chargé. Appelez init_model() d'abord.")
+        
     #Analyse le texte et retourne un booléen et le pourcentage de certitude.
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
     inputs = {k: v.to(device) for k, v in inputs.items()}
@@ -153,13 +156,17 @@ def main():
             
             try:
                 init_model() # Chargement du modèle BERT
+                window.close()
+                layout = create_layout_3_listening()
+                window = sg.Window(...)
+                current_state = 3
             except Exception as e:
                 sg.popup_error(f"Erreur lors du chargement du modèle.\nVérifie que le dossier 'TrainedBert' est bien placé.\n\nErreur: {e}")
                 
-            window.close()
-            layout = create_layout_3_listening()
-            window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
-            current_state = 3
+                window.close()
+                layout = create_layout_3_listening()
+                window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+                current_state = 1
 
         # 3 -> Analyse par l'IA
         elif current_state == 3:
