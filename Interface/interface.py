@@ -1,6 +1,7 @@
 import FreeSimpleGUI as sg
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+import ./RealTimeAudioRecorder
 
 # --- VARIABLES GLOBALES DU MODÈLE ---
 tokenizer = None
