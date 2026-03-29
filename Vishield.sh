@@ -125,6 +125,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # ── 6. Diagnostic : afficher les versions installées ──────────────────────
+if [ "$1" = "-v" ]; then
+
 echo ""
 echo "Versions installées :"
 $VENV_PYTHON --version
@@ -134,10 +136,11 @@ $VENV_PIP show FreeSimpleGUI  | grep -E "^(Name|Version)"
 $VENV_PIP show torch          | grep -E "^(Name|Version)"
 $VENV_PIP show transformers   | grep -E "^(Name|Version)"
 echo ""
+fi
 
 # ── 7. Lancer le programme ─────────────────────────────────────────────────
 echo "Lancement de Vishield..."
-"$VENV_PYTHON" Interface/interface.py
+"$VENV_PYTHON" src/interface.py
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
