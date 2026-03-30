@@ -1,8 +1,7 @@
 import FreeSimpleGUI as sg
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-import RealTimeAudioRecorder as record
-import thread
+from RealTimeAudioRecorder import RealTimeAudioRecorder
 
 # --- VARIABLES GLOBALES DU MODÈLE ---
 tokenizer = None
@@ -156,14 +155,14 @@ def main():
             # On force la fenêtre à s'afficher avant de geler l'interface avec le chargement
             window.refresh()
 
-            record.main()
-
+            recorder = RealTimeAudioRecorder()
+            recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
             
             try:
                 init_model() # Chargement du modèle BERT
                 window.close()
                 layout = create_layout_3_listening()
-                window = sg.Window(...)
+                window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
                 current_state = 3
             except Exception as e:
                 sg.popup_error(f"Erreur lors du chargement du modèle.\nVérifie que le dossier 'TrainedBert' est bien placé.\n\nErreur: {e}")
@@ -221,6 +220,9 @@ def main():
             window.close()
             layout = create_layout_1_off()
             window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+
+            recorder.stop_recording()
+            
             current_state = 1
 
         elif current_state == 5:
@@ -228,6 +230,9 @@ def main():
                 window.close()
                 layout = create_layout_1_off()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+
+                recorder.stop_recording()
+
                 current_state = 1
 
     window.close()
