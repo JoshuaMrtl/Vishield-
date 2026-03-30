@@ -71,28 +71,53 @@ VENV_PYTHON="$VENV_DIR/Scripts/python"
 VENV_PIP="$VENV_DIR/Scripts/pip"
 
 # ── 5. Installer / vérifier les dépendances ────────────────────────────────
+
+$VENV_PYTHON -c "import safetensors" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Installation de safetensors dans le venv..."
+    echo ""
+    $VENV_PIP install safetensors
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "ERREUR : Echec de l'installation de safetensors."
+        echo ""
+        exit 1
+    fi
+fi
+
 $VENV_PYTHON -c "import pyaudiowpatch" 2>/dev/null
 if [ $? -ne 0 ]; then
+    echo ""
     echo "Installation de PyAudioWPatch==0.2.12.6 dans le venv..."
+    echo ""
     $VENV_PIP install --no-cache-dir "PyAudioWPatch==0.2.12.6"
     if [ $? -ne 0 ]; then
+        echo ""
         echo "ERREUR : Echec de l'installation de PyAudioWPatch."
+        echo ""
         exit 1
     fi
 fi
 
 $VENV_PYTHON -c "import numpy" 2>/dev/null
 if [ $? -ne 0 ]; then
+    echo ""
     echo "Installation de numpy dans le venv..."
+    echo ""
     $VENV_PIP install --no-cache-dir numpy
 fi
 
 $VENV_PYTHON -c "import FreeSimpleGUI" 2>/dev/null
 if [ $? -ne 0 ]; then
+    echo ""
     echo "Installation de FreeSimpleGUI dans le venv..."
+    echo ""
     $VENV_PIP install --no-cache-dir FreeSimpleGUI
     if [ $? -ne 0 ]; then
+        echo ""
         echo "ERREUR : Echec de l'installation de FreeSimpleGUI."
+        echo ""
         exit 1
     fi
 fi
@@ -102,24 +127,34 @@ if [ $? -ne 0 ]; then
     echo "Détection du GPU Nvidia..."
     nvidia-smi &>/dev/null
     if [ $? -eq 0 ]; then
+        echo ""
         echo "GPU Nvidia détecté. Installation de torch avec support CUDA 12.1..."
-        $VENV_PIP install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
+        echo ""
+        $VENV_PIP install --no-cache-dir torch #--index-url https://download.pytorch.org/whl/cu121
     else
+        echo ""
         echo "Aucun GPU Nvidia détecté. Installation de torch (version CPU)..."
+        echo ""
         $VENV_PIP install --no-cache-dir torch
     fi
     if [ $? -ne 0 ]; then
+        echo ""
         echo "ERREUR : Echec de l'installation de torch."
+        echo ""
         exit 1
     fi
 fi
 
 $VENV_PYTHON -c "import transformers" 2>/dev/null
 if [ $? -ne 0 ]; then
+    echo ""
     echo "Installation de transformers dans le venv..."
+    echo ""
     $VENV_PIP install --no-cache-dir transformers
     if [ $? -ne 0 ]; then
+        echo ""
         echo "ERREUR : Echec de l'installation de transformers."
+        echo ""
         exit 1
     fi
 fi
@@ -135,6 +170,7 @@ $VENV_PIP show numpy          | grep -E "^(Name|Version)"
 $VENV_PIP show FreeSimpleGUI  | grep -E "^(Name|Version)"
 $VENV_PIP show torch          | grep -E "^(Name|Version)"
 $VENV_PIP show transformers   | grep -E "^(Name|Version)"
+$VENV_PIP show safetensors   | grep -E "^(Name|Version)"
 echo ""
 fi
 

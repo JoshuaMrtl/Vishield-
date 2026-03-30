@@ -2,6 +2,7 @@ import FreeSimpleGUI as sg
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 from RealTimeAudioRecorder import RealTimeAudioRecorder
+import os
 
 # --- VARIABLES GLOBALES DU MODÈLE ---
 tokenizer = None
@@ -30,7 +31,8 @@ sg.theme_element_background_color(THEME_COLOR)
 def init_model():
     #Charge le modèle depuis le dossier local TrainedBert.
     global tokenizer, model, device
-    model_path = "../TrainedBert" 
+    model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../TrainedBert"))
+
     
     tokenizer = DistilBertTokenizer.from_pretrained(model_path)
     model = DistilBertForSequenceClassification.from_pretrained(model_path)
@@ -41,6 +43,7 @@ def init_model():
 
 def predict_vishing(text):
     if tokenizer is None or model is None:
+        print("RuntimeError : Le modèle n'est pas chargé. Appelez init_model() d'abord.")
         raise RuntimeError("Le modèle n'est pas chargé. Appelez init_model() d'abord.")
         
     #Analyse le texte et retourne un booléen et le pourcentage de certitude.
@@ -155,8 +158,8 @@ def main():
             # On force la fenêtre à s'afficher avant de geler l'interface avec le chargement
             window.refresh()
 
-            recorder = RealTimeAudioRecorder()
-            recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
+            # recorder = RealTimeAudioRecorder()
+            # recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
             
             try:
                 init_model() # Chargement du modèle BERT
@@ -165,7 +168,12 @@ def main():
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
                 current_state = 3
             except Exception as e:
-                sg.popup_error(f"Erreur lors du chargement du modèle.\nVérifie que le dossier 'TrainedBert' est bien placé.\n\nErreur: {e}")
+                sg.popup_scrolled(
+                    f"Erreur lors du chargement du modèle.\n"
+                    f"Vérifie que le dossier 'TrainedBert' est bien placé.\n\n"
+                    f"Erreur: {e}",
+                    title="Erreur"
+                )
                 
                 window.close()
                 layout = create_layout_3_listening()
@@ -221,7 +229,7 @@ def main():
             layout = create_layout_1_off()
             window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
 
-            recorder.stop_recording()
+            # recorder.stop_recording()
             
             current_state = 1
 
@@ -231,7 +239,7 @@ def main():
                 layout = create_layout_1_off()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
 
-                recorder.stop_recording()
+                # recorder.stop_recording()
 
                 current_state = 1
 
