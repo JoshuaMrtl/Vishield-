@@ -11,7 +11,7 @@ from SpeechToText import Whisper
 tokenizer = None
 bert = None
 device = None
-whisper = None
+stt = None
 
 # --- CONFIGURATION DES COULEURS ET FONTS ---
 THEME_COLOR = 'white'
@@ -143,6 +143,8 @@ def create_layout_5_alert_confirmed():
 # --- LOGIQUE PRINCIPALE ---
 
 def main():
+    global stt
+    
     window_size = (400, 600)
     layout = create_layout_1_off()
     window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
