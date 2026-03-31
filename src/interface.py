@@ -1,13 +1,17 @@
 import FreeSimpleGUI as sg
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+from os import path
+
 from RealTimeAudioRecorder import RealTimeAudioRecorder
-import os
+from SpeechToText import Whisper
+
 
 # --- VARIABLES GLOBALES DU MODÈLE ---
 tokenizer = None
-model = None
+bert = None
 device = None
+whisper = None
 
 # --- CONFIGURATION DES COULEURS ET FONTS ---
 THEME_COLOR = 'white'
@@ -28,30 +32,32 @@ sg.theme_element_background_color(THEME_COLOR)
 
 # --- FONCTIONS IA ---
 
-def init_model():
+def init_bert():
+    print("[Bert]    Initializing model.")
     #Charge le modèle depuis le dossier local TrainedBert.
-    global tokenizer, model, device
-    model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../TrainedBert"))
+    global tokenizer, bert, device
+    bert_path = path.abspath(path.join(path.dirname(__file__), "../TrainedBert"))
 
     
-    tokenizer = DistilBertTokenizer.from_pretrained(model_path)
-    model = DistilBertForSequenceClassification.from_pretrained(model_path)
+    tokenizer = DistilBertTokenizer.from_pretrained(bert_path)
+    bert = DistilBertForSequenceClassification.from_pretrained(bert_path)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval() # Mode évaluation
+    bert.to(device)
+    bert.eval() # Mode évaluation
+    print("[Bert]    Model initialized.")
 
 def predict_vishing(text):
-    if tokenizer is None or model is None:
-        print("RuntimeError : Le modèle n'est pas chargé. Appelez init_model() d'abord.")
-        raise RuntimeError("Le modèle n'est pas chargé. Appelez init_model() d'abord.")
+    if tokenizer is None or bert is None:
+        print("RuntimeError : Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
+        raise RuntimeError("Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
         
     #Analyse le texte et retourne un booléen et le pourcentage de certitude.
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
     inputs = {k: v.to(device) for k, v in inputs.items()}
     
     with torch.no_grad():
-        outputs = model(**inputs)
+        outputs = bert(**inputs)
         
     probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
     predicted_class_id = probabilities.argmax().item()
@@ -158,11 +164,14 @@ def main():
             # On force la fenêtre à s'afficher avant de geler l'interface avec le chargement
             window.refresh()
 
-            # recorder = RealTimeAudioRecorder()
-            # recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
+            recorder = RealTimeAudioRecorder()
+            recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
             
             try:
-                init_model() # Chargement du modèle BERT
+                init_bert() # Chargement du modèle BERT
+                
+                stt = Whisper()
+
                 window.close()
                 layout = create_layout_3_listening()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
@@ -229,7 +238,7 @@ def main():
             layout = create_layout_1_off()
             window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
 
-            # recorder.stop_recording()
+            recorder.stop_recording()
             
             current_state = 1
 
@@ -239,7 +248,7 @@ def main():
                 layout = create_layout_1_off()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
 
-                # recorder.stop_recording()
+                recorder.stop_recording()
 
                 current_state = 1
 

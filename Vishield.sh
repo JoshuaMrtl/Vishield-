@@ -72,6 +72,34 @@ VENV_PIP="$VENV_DIR/Scripts/pip"
 
 # ── 5. Installer / vérifier les dépendances ────────────────────────────────
 
+# ffmpeg
+# if [ $? -ne 0 ]; then
+#     echo ""
+#     echo "Installation de ffmpeg dans le venv..."
+#     echo ""
+#     winget install ffmpeg --source winget
+#     if [ $? -ne 0 ]; then
+#         echo ""
+#         echo "ERREUR : Echec de l'installation de faster-whisper."
+#         echo ""
+#         exit 1
+#     fi
+# fi
+
+$VENV_PYTHON -c "import faster-whisper" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Installation de faster-whisper dans le venv..."
+    echo ""
+    $VENV_PIP install faster-whisper
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "ERREUR : Echec de l'installation de faster-whisper."
+        echo ""
+        exit 1
+    fi
+fi
+
 $VENV_PYTHON -c "import safetensors" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo ""
@@ -170,7 +198,8 @@ $VENV_PIP show numpy          | grep -E "^(Name|Version)"
 $VENV_PIP show FreeSimpleGUI  | grep -E "^(Name|Version)"
 $VENV_PIP show torch          | grep -E "^(Name|Version)"
 $VENV_PIP show transformers   | grep -E "^(Name|Version)"
-$VENV_PIP show safetensors   | grep -E "^(Name|Version)"
+$VENV_PIP show safetensors    | grep -E "^(Name|Version)"
+$VENV_PIP show faster-whisper | grep -E "^(Name|Version)"
 echo ""
 fi
 
