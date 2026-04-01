@@ -323,13 +323,12 @@ class RealTimeAudioRecorder:
                     wf.writeframes(mixed.tobytes())
 
                 print(f"[Mixer]   Buffer {buf_id} saved → {filepath}")
+                self.LastOutputFilepath = filepath
 
             if self._recorders_done.is_set():
                 with self._mix_lock:
                     if not self._buffers_to_mix:
                         break
-
-        self.LastOutputFilepath = filepath
 
         print("[Mixer] Done.")
 
@@ -338,11 +337,11 @@ class RealTimeAudioRecorder:
         self._callback = callback
         print("callback registered")
 
-    @property # Décorteur indiquant que la fonction est un getteur
+    @property # Décorateur indiquant que la fonction est un getteur
     def LastOutputFilepath(self):
         return self._LastOutputFilepath
 
-    @LastOutputFilepath.setter # Décorteur indiquant que la fonction est un setteur
+    @LastOutputFilepath.setter # Décorateur indiquant que la fonction est un setteur
     def LastOutputFilepath(self, value):
         self._LastOutputFilepath = value
         print("LatOutputFilepath value changed")
@@ -355,6 +354,6 @@ if __name__ == "__main__":
     recorder.record()
     input("Press Enter to stop...\n")
     recorder.stop_recording()
-    # FIX : os._exit() contourne le cleanup Python/PortAudio qui cause le segfault.
+    # os._exit() contourne le cleanup Python/PortAudio qui cause le segfault.
     # Tous les fichiers .wav sont deja fermes et flushed a ce stade.
     os._exit(0)
