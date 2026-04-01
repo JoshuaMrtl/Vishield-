@@ -48,6 +48,9 @@ class RealTimeAudioRecorder:
 
         self._output_file_path = self._next_output_path()
 
+        self._LastOutputFilepath = None
+        self._callback = None
+
 # -------------------- Public Methods --------------------
     def record(self):
         """Lance l'enregistrement en arrière-plan (non bloquant)."""
@@ -312,22 +315,39 @@ class RealTimeAudioRecorder:
 
                 mixed = np.clip(spk + mic, -32768, 32767).astype(np.int16)
 
-                filename = self._output_file_path + str(buf_id) + ".wav"
-                with wave.open(filename, 'wb') as wf:
+                filepath = self._output_file_path + str(buf_id) + ".wav"
+                with wave.open(filepath, 'wb') as wf:
                     wf.setnchannels(self.CHANNELS)
                     wf.setsampwidth(2)
                     wf.setframerate(self.RATE)
                     wf.writeframes(mixed.tobytes())
 
-                print(f"[Mixer]   Buffer {buf_id} saved → {filename}")
+                print(f"[Mixer]   Buffer {buf_id} saved → {filepath}")
 
             if self._recorders_done.is_set():
                 with self._mix_lock:
                     if not self._buffers_to_mix:
                         break
 
+        self.LastOutputFilepath = filepath
+
         print("[Mixer] Done.")
 
+#-------------------- Callback Methods --------------------
+    def register_callback(self, callback):
+        self._callback = callback
+        print("callback registered")
+
+    @property # Décorteur indiquant que la fonction est un getteur
+    def LastOutputFilepath(self):
+        return self._LastOutputFilepath
+
+    @LastOutputFilepath.setter # Décorteur indiquant que la fonction est un setteur
+    def LastOutputFilepath(self, value):
+        self._LastOutputFilepath = value
+        print("LatOutputFilepath value changed")
+        if self._callback:
+            self._callback(value)  # déclenché automatiquement à chaque changement
 
 
 if __name__ == "__main__":

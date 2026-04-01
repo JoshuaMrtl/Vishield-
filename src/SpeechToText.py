@@ -17,7 +17,7 @@ class Whisper :
         print("[Whisper] Model initialized.")
 
     
-    def _check_dependencies():
+    def _check_dependencies(self):
         if shutil.which("ffmpeg") is None:
             raise EnvironmentError("ffmpeg est introuvable. Installe-le et assure-toi qu'il est dans le PATH.")
 
@@ -26,4 +26,5 @@ class Whisper :
             raise RuntimeError("Whisper n'est pas initialisé. Appelez init_whisper() d'abord.")
         
         segments, _ = whisper.transcribe(wav_path, language="fr")
+        print("[Whisper] New text buffer :".join(segment.text.strip() for segment in segments))
         return " ".join(segment.text.strip() for segment in segments)

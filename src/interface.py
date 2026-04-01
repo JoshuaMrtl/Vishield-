@@ -66,6 +66,13 @@ def predict_vishing(text):
     is_vishing = (predicted_class_id == 1)
     return is_vishing, confidence
 
+# --- FONCTIONS CALLBACK ---
+
+def on_new_file_saved(newFilepath):
+    global stt
+
+    print(f"[Callback]Nouveau fichier enregistré : {newFilepath}")
+    stt.transcribe_wav(newFilepath)
 
 # --- FONCTIONS DE LAYOUTS ---
 
@@ -167,6 +174,7 @@ def main():
             window.refresh()
 
             recorder = RealTimeAudioRecorder()
+            recorder.register_callback(on_new_file_saved)
             recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
             
             try:

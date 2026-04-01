@@ -86,7 +86,7 @@ VENV_PIP="$VENV_DIR/Scripts/pip"
 #     fi
 # fi
 
-$VENV_PYTHON -c "import faster-whisper" 2>/dev/null
+$VENV_PYTHON -c "import faster_whisper" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo ""
     echo "Installation de faster-whisper dans le venv..."
