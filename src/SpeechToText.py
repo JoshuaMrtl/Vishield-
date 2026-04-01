@@ -5,6 +5,14 @@ from time import time
 
 class Whisper :
 
+    # Text colors
+    DEFAULT = '\033[0m'
+    RED     = '\033[91m'
+    GREEN   = '\033[92m'
+    YELLOW  = '\033[93m'
+    BLUE    = '\033[94m'
+    PURPLE  = '\033[95m'
+
     def __init__(self):
         print("[Whisper] Initializing model.")
         global whisper
@@ -23,13 +31,14 @@ class Whisper :
             raise EnvironmentError("ffmpeg est introuvable. Installe-le et assure-toi qu'il est dans le PATH.")
 
     def transcribe_wav(self, wav_path: str) -> str:
-        print("[Whisper] Beginning transcription")
+        print(f"{time():.2f}" + self.PURPLE + f" [Whisper] Beginning transcription of file {wav_path}" + self.DEFAULT)
         if whisper is None:
             raise RuntimeError("Whisper n'est pas initialisé. Appelez init_whisper() d'abord.")
         
         segments, _ = whisper.transcribe(wav_path, language="fr")
-        print("[Whisper] New text buffer :".join(segment.text.strip() for segment in segments))
-        return " ".join(segment.text.strip() for segment in segments)
+        text_buffer = "".join(segment.text.strip() for segment in segments)
+        print(f"{time():.2f}" + self.RED + f" [Whisper] {wav_path} converted to new text buffer : {text_buffer}" + self.DEFAULT)
+        return text_buffer
 
 
 if __name__ == "__main__" :

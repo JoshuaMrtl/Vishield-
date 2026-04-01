@@ -25,6 +25,14 @@ class RealTimeAudioRecorder:
     CHUNK   = 1024             # Samples per chunk
     BUFFER  = 5                # Buffer duration in seconds
 
+    # Text colors
+    DEFAULT = '\033[0m'
+    RED     = '\033[91m'
+    GREEN   = '\033[92m'
+    YELLOW  = '\033[93m'
+    BLUE    = '\033[94m'
+    PURPLE  = '\033[95m'
+
     def __init__(self):
         self.output_dir = "recordings"
         self.base_name  = "callRecord"
@@ -50,6 +58,8 @@ class RealTimeAudioRecorder:
 
         self._LastOutputFilepath = None
         self._callback = None
+
+        self.start_time = time.time()
 
 # -------------------- Public Methods --------------------
     def record(self):
@@ -225,7 +235,7 @@ class RealTimeAudioRecorder:
                 self._speaker_buffers[local_id] = (
                     b''.join(buffer_frames), spk_rate, spk_channels)
 
-            print(f"[Speaker] Buffer {local_id} captured")
+            print(f"{time.time():.2f}" + self.YELLOW + f" [Speaker] Buffer {local_id} captured" + self.DEFAULT)
             self._notify_mix_if_ready(local_id)
             local_id += 1
 
@@ -276,7 +286,7 @@ class RealTimeAudioRecorder:
                 self._mic_buffers[local_id] = (
                     b''.join(buffer_frames), mic_rate, mic_channels)
 
-            print(f"[Mic]     Buffer {local_id} captured")
+            print(f"{time.time():.2f}" + self.YELLOW + f" [Mic]     Buffer {local_id} captured" + self.DEFAULT)
             self._notify_mix_if_ready(local_id)
             local_id += 1
 
@@ -322,7 +332,7 @@ class RealTimeAudioRecorder:
                     wf.setframerate(self.RATE)
                     wf.writeframes(mixed.tobytes())
 
-                print(f"[Mixer]   Buffer {buf_id} saved → {filepath}")
+                print(f"{time.time():.2f}" + self.GREEN + f" [Mixer]   Buffer {buf_id} saved → {filepath}" + self.DEFAULT)
                 self.LastOutputFilepath = filepath
 
             if self._recorders_done.is_set():
@@ -344,7 +354,6 @@ class RealTimeAudioRecorder:
     @LastOutputFilepath.setter # Décorateur indiquant que la fonction est un setteur
     def LastOutputFilepath(self, value):
         self._LastOutputFilepath = value
-        print("LatOutputFilepath value changed")
         if self._callback:
             self._callback(value)  # déclenché automatiquement à chaque changement
 

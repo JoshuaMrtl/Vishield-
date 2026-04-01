@@ -71,7 +71,7 @@ def predict_vishing(text):
 def on_new_file_saved(newFilepath):
     global stt
 
-    print(f"[Callback]Nouveau fichier enregistré : {newFilepath}")
+    # print(f"[Callback]Nouveau fichier enregistré : {newFilepath}")
     stt.transcribe_wav(newFilepath)
 
 # --- FONCTIONS DE LAYOUTS ---
@@ -172,10 +172,6 @@ def main():
             
             # On force la fenêtre à s'afficher avant de geler l'interface avec le chargement
             window.refresh()
-
-            recorder = RealTimeAudioRecorder()
-            recorder.register_callback(on_new_file_saved)
-            recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
             
             try:
                 init_bert() # Chargement du modèle BERT
@@ -198,6 +194,10 @@ def main():
                 layout = create_layout_3_listening()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
                 current_state = 1
+
+            recorder = RealTimeAudioRecorder()
+            recorder.register_callback(on_new_file_saved)
+            recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
 
         # 3 -> Analyse par l'IA
         elif current_state == 3:
