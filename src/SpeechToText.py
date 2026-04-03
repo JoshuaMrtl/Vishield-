@@ -13,32 +13,53 @@ class Whisper :
     BLUE    = '\033[94m'
     PURPLE  = '\033[95m'
 
+# -------------------- Public Methods --------------------
+
     def __init__(self):
         print("[Whisper] Initializing model.")
-        global whisper
+        self.whisper = None
+
+        self._newTextBuffer = None
+        self._callback = None
 
         self._check_dependencies()
 
         if torch.cuda.is_available() :
-            whisper = WhisperModel("turbo", device="cuda", compute_type="float16")
+            self.whisper = WhisperModel("turbo", device="cuda", compute_type="float16")
         else :
-            whisper = WhisperModel("turbo", device="cpu", compute_type="int8")
+           self. whisper = WhisperModel("turbo", device="cpu", compute_type="int8")
         print("[Whisper] Model initialized.")
-
-    
+ 
     def _check_dependencies(self):
         if shutil.which("ffmpeg") is None:
             raise EnvironmentError("ffmpeg est introuvable. Installe-le et assure-toi qu'il est dans le PATH.")
 
     def transcribe_wav(self, wav_path: str) -> str:
         print(f"{time():.2f}" + self.PURPLE + f" [Whisper] Beginning transcription of file {wav_path}" + self.DEFAULT)
-        if whisper is None:
+
+        if self.whisper is None:
             raise RuntimeError("Whisper n'est pas initialisé. Appelez init_whisper() d'abord.")
         
-        segments, _ = whisper.transcribe(wav_path, language="fr")
+        segments, _ = self.whisper.transcribe(wav_path, language="fr")
         text_buffer = "".join(segment.text.strip() for segment in segments)
         print(f"{time():.2f}" + self.RED + f" [Whisper] {wav_path} converted to new text buffer : {text_buffer}" + self.DEFAULT)
-        return text_buffer
+        self.newTextBuffer = text_buffer
+
+#-------------------- Callback Methods --------------------
+    # These methods are used to call Bert in TextToNote.py to analyze a new text buffer when Whisper is done making it
+
+    def register_callback(self, callback):
+        self._callback = callback
+
+    @property # Décorateur indiquant que la fonction est un getteur
+    def newTextBuffer(self):
+        return self._newTextBuffer
+
+    @newTextBuffer.setter # Décorateur indiquant que la fonction est un setteur
+    def newTextBuffer(self, value):
+        self._newTextBuffer = value
+        if self._callback:
+            self._callback(value)  # déclenché automatiquement à chaque changement
 
 
 if __name__ == "__main__" :

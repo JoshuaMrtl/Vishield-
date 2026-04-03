@@ -235,7 +235,7 @@ class RealTimeAudioRecorder:
                 self._speaker_buffers[local_id] = (
                     b''.join(buffer_frames), spk_rate, spk_channels)
 
-            print(f"{time.time():.2f}" + self.YELLOW + f" [Speaker] Buffer {local_id} captured" + self.DEFAULT)
+            print(f"{time.time():.2f}" + f" [Speaker] Buffer {local_id} captured")
             self._notify_mix_if_ready(local_id)
             local_id += 1
 
@@ -286,7 +286,7 @@ class RealTimeAudioRecorder:
                 self._mic_buffers[local_id] = (
                     b''.join(buffer_frames), mic_rate, mic_channels)
 
-            print(f"{time.time():.2f}" + self.YELLOW + f" [Mic]     Buffer {local_id} captured" + self.DEFAULT)
+            print(f"{time.time():.2f}" + f" [Mic]     Buffer {local_id} captured")
             self._notify_mix_if_ready(local_id)
             local_id += 1
 
@@ -345,7 +345,7 @@ class RealTimeAudioRecorder:
 #-------------------- Callback Methods --------------------
     def register_callback(self, callback):
         self._callback = callback
-        print("callback registered")
+        print("RTAR callback registered")
 
     @property # Décorateur indiquant que la fonction est un getteur
     def LastOutputFilepath(self):

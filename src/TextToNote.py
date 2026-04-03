@@ -1,14 +1,28 @@
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 from os import path
+from time import time
 
 class Bert :
+
+    # Text colors
+    DEFAULT = '\033[0m'
+    RED     = '\033[91m'
+    GREEN   = '\033[92m'
+    YELLOW  = '\033[93m'
+    BLUE    = '\033[94m'
+    PURPLE  = '\033[95m'
+
+# -------------------- Public Methods --------------------
 
     def __init__(self):
 
         self.tokenizer = None
         self.bert      = None
         self.device    = None
+
+        self._newNote = None
+        self._callback = None
 
         print("[Bert]    Initializing model.")
         #Charge le modèle depuis le dossier local TrainedBert.
@@ -24,6 +38,7 @@ class Bert :
         print("[Bert]    Model initialized.")
 
     def predict_vishing(self, text):
+        print(f"{time():.2f}" + self.YELLOW + f"[Bert]    Analizing \"{text}\"" + self.DEFAULT)
         if self.tokenizer is None or self.bert is None:
             print("RuntimeError : Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
             raise RuntimeError("Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
@@ -40,4 +55,22 @@ class Bert :
         confidence = probabilities[0][predicted_class_id].item() * 100
         
         is_vishing = (predicted_class_id == 1)
+
+        print(f"{time():.2f}" + self.YELLOW + f"[Bert]    Analized \"{text}\" : Is it vishing ? {is_vishing}, confidence : {confidence}" + self.DEFAULT)
         return is_vishing, confidence
+
+# #-------------------- Callback Methods --------------------
+
+#     def register_callback(self, callback):
+#         self._callback = callback
+#         print("callback registered")
+
+#     @property # Décorateur indiquant que la fonction est un getteur
+#     def newTextBuffer(self):
+#         return self._newTextBuffer
+
+#     @LastOutputFilepath.setter # Décorateur indiquant que la fonction est un setteur
+#     def newTextBuffer(self, value):
+#         self._newTextBuffer = value
+#         if self._callback:
+#             self._callback(value)  # déclenché automatiquement à chaque changement
