@@ -10,7 +10,8 @@ from TextToNote import Bert
 
 stt = None # Instance of Speech To Text model (Whipser)
 ttn = None # Instance of Text To Note model (Bert)
-event = None
+window = None
+number_of_analyzed_buffer = 0
 
 # Text colors
 DEFAULT = '\033[0m'
@@ -56,17 +57,25 @@ def on_text_analyzed(value) :
     # Switches views when Bert detects vishing attack
     # value is a tuple (is_vishing, confidence)
 
-    global event, BLUE, DEFAULT
+    global BLUE, DEFAULT, number_of_analyzed_buffer, window
 
     is_vishing = value[0] # Boolean
     confidence = value[1] # Float
 
     if is_vishing :
         if confidence > 50 :
-            print(f"{time.time():.2f}" + BLUE + f" [App]     Vishing attack detected with {confidence:.2f}% confidence, stopping the call" + DEFAULT)
+            print(f"{time():.2f}" + BLUE + f" [App]     Buffer {number_of_analyzed_buffer}: Vishing attack detected with {confidence:.2f}% confidence, stopping the call" + DEFAULT)
+            window.write_event_value('-VISHING_CONFIRMED-', confidence)
 
         else :
-            print(f"{time.time():.2f}" + BLUE + f" [App]     Potential vishing attack, {confidence:.2f}% confidence" + DEFAULT)
+            print(f"{time():.2f}" + BLUE + f" [App]     Buffer {number_of_analyzed_buffer}: Potential vishing attack, {confidence:.2f}% confidence" + DEFAULT)
+            window.write_event_value('-VISHING_PROBABLE-', confidence)
+
+    else :
+        print(f"{time():.2f}" + BLUE + f" [App]     Buffer {number_of_analyzed_buffer}: no vishing attack detected, {confidence:.2f}% confidence" + DEFAULT)
+        window.write_event_value('-NO_VISHING-', confidence)
+
+    number_of_analyzed_buffer += 1
 
     
 
@@ -146,7 +155,7 @@ def create_layout_5_alert_confirmed():
 # --- LOGIQUE PRINCIPALE ---
 
 def main():
-    global stt, ttn, event
+    global stt, ttn, window
     
     window_size = (400, 600)
     layout = create_layout_1_off()
@@ -158,7 +167,7 @@ def main():
         stt.register_callback(on_new_text_buffer)
 
         ttn = Bert()
-        ttn.register_callback()
+        ttn.register_callback(on_text_analyzed)
         
     except Exception as e:
         sg.popup_scrolled(
@@ -228,14 +237,14 @@ def main():
                         window['-SIMULATED_TEXT-'].update('')
             
             # Déclenchement manuel
-            elif event == '-MANUAL_ALERT-':
+            elif event == '-MANUAL_ALERT-' or event == '-VISHING_PROBABLE-':
                 window.close()
                 layout = create_layout_4_alert_probable()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
                 current_state = 4
             
             # Triche (bouton vert) pour tester l'écran 5
-            elif event == '-LISTENING_ICON-': 
+            elif event == '-LISTENING_ICON-' or event == '-VISHING_CONFIRMED-': 
                 window.close()
                 layout = create_layout_5_alert_confirmed()
                 window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)

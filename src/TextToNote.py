@@ -38,7 +38,7 @@ class Bert :
         print("[Bert]    Model initialized.")
 
     def predict_vishing(self, text):
-        print(f"{time():.2f}" + self.YELLOW + f"[Bert]    Analizing \"{text}\"" + self.DEFAULT)
+        print(f"{time():.2f}" + self.YELLOW + f" [Bert]    Analizing \"{text}\"" + self.DEFAULT)
         if self.tokenizer is None or self.bert is None:
             print("RuntimeError : Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
             raise RuntimeError("Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
@@ -56,7 +56,7 @@ class Bert :
         
         is_vishing = (predicted_class_id == 1)
 
-        print(f"{time():.2f}" + self.YELLOW + f"[Bert]    Analized \"{text}\" : Is it vishing ? {is_vishing}, confidence : {confidence}" + self.DEFAULT)
+        print(f"{time():.2f}" + self.YELLOW + f" [Bert]    Analized \"{text}\" : Is it vishing ? {is_vishing}, confidence : {confidence}" + self.DEFAULT)
         self.newNote = (is_vishing, confidence)
 
 #-------------------- Callback Methods --------------------
