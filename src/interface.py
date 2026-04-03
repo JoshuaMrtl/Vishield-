@@ -1,17 +1,14 @@
 import FreeSimpleGUI as sg
-import torch
-from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-from os import path
 
 from RealTimeAudioRecorder import RealTimeAudioRecorder
 from SpeechToText import Whisper
+from TextToNote import Bert
 
 
 # --- VARIABLES GLOBALES DU MODÈLE ---
-tokenizer = None
-bert = None
-device = None
-stt = None
+
+stt = None # Instance of Speech To Text model (Whipser)
+ttn = None # Instance of Text To Note model (Bert)
 
 # --- CONFIGURATION DES COULEURS ET FONTS ---
 THEME_COLOR = 'white'
@@ -29,42 +26,6 @@ FONT_ICON = ('Helvetica', 40)
 sg.theme_background_color(THEME_COLOR)
 sg.theme_text_element_background_color(THEME_COLOR)
 sg.theme_element_background_color(THEME_COLOR)
-
-# --- FONCTIONS IA ---
-
-def init_bert():
-    print("[Bert]    Initializing model.")
-    #Charge le modèle depuis le dossier local TrainedBert.
-    global tokenizer, bert, device
-    bert_path = path.abspath(path.join(path.dirname(__file__), "../TrainedBert"))
-
-    
-    tokenizer = DistilBertTokenizer.from_pretrained(bert_path)
-    bert = DistilBertForSequenceClassification.from_pretrained(bert_path)
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    bert.to(device)
-    bert.eval() # Mode évaluation
-    print("[Bert]    Model initialized.")
-
-def predict_vishing(text):
-    if tokenizer is None or bert is None:
-        print("RuntimeError : Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
-        raise RuntimeError("Le modèle n'est pas chargé. Appelez init_bert() d'abord.")
-        
-    #Analyse le texte et retourne un booléen et le pourcentage de certitude.
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-    
-    with torch.no_grad():
-        outputs = bert(**inputs)
-        
-    probabilities = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    predicted_class_id = probabilities.argmax().item()
-    confidence = probabilities[0][predicted_class_id].item() * 100
-    
-    is_vishing = (predicted_class_id == 1)
-    return is_vishing, confidence
 
 # --- FONCTIONS CALLBACK ---
 
@@ -150,7 +111,7 @@ def create_layout_5_alert_confirmed():
 # --- LOGIQUE PRINCIPALE ---
 
 def main():
-    global stt
+    global stt, ttn
     
     window_size = (400, 600)
     layout = create_layout_1_off()
@@ -174,8 +135,7 @@ def main():
             window.refresh()
             
             try:
-                init_bert() # Chargement du modèle BERT
-                
+                ttn = Bert()
                 stt = Whisper()
 
                 window.close()
@@ -208,7 +168,7 @@ def main():
                 
                 if texte_entendu.strip():
                     # Appel au modèle BERT
-                    is_vishing, confidence = predict_vishing(texte_entendu)
+                    is_vishing, confidence = ttn.predict_vishing(texte_entendu)
                     print(f"Analyse: '{texte_entendu}' | Vishing: {is_vishing} | Certitude: {confidence:.2f}%")
                     
                     if is_vishing:
