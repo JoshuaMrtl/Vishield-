@@ -1,4 +1,5 @@
 import FreeSimpleGUI as sg
+from time import time
 
 from RealTimeAudioRecorder import RealTimeAudioRecorder
 from SpeechToText import Whisper
@@ -9,6 +10,15 @@ from TextToNote import Bert
 
 stt = None # Instance of Speech To Text model (Whipser)
 ttn = None # Instance of Text To Note model (Bert)
+event = None
+
+# Text colors
+DEFAULT = '\033[0m'
+RED     = '\033[91m'
+GREEN   = '\033[92m'
+YELLOW  = '\033[93m'
+BLUE    = '\033[94m'
+PURPLE  = '\033[95m'
 
 # --- CONFIGURATION DES COULEURS ET FONTS ---
 THEME_COLOR = 'white'
@@ -41,6 +51,24 @@ def on_new_text_buffer(text_buffer) :
     global ttn
 
     ttn.predict_vishing(text_buffer)
+
+def on_text_analyzed(value) :
+    # Switches views when Bert detects vishing attack
+    # value is a tuple (is_vishing, confidence)
+
+    global event, BLUE, DEFAULT
+
+    is_vishing = value[0] # Boolean
+    confidence = value[1] # Float
+
+    if is_vishing :
+        if confidence > 50 :
+            print(f"{time.time():.2f}" + BLUE + f" [App]     Vishing attack detected with {confidence:.2f}% confidence, stopping the call" + DEFAULT)
+
+        else :
+            print(f"{time.time():.2f}" + BLUE + f" [App]     Potential vishing attack, {confidence:.2f}% confidence" + DEFAULT)
+
+    
 
 # --- FONCTIONS DE LAYOUTS ---
 
@@ -118,7 +146,7 @@ def create_layout_5_alert_confirmed():
 # --- LOGIQUE PRINCIPALE ---
 
 def main():
-    global stt, ttn
+    global stt, ttn, event
     
     window_size = (400, 600)
     layout = create_layout_1_off()
@@ -130,6 +158,7 @@ def main():
         stt.register_callback(on_new_text_buffer)
 
         ttn = Bert()
+        ttn.register_callback()
         
     except Exception as e:
         sg.popup_scrolled(

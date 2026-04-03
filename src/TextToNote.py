@@ -57,20 +57,20 @@ class Bert :
         is_vishing = (predicted_class_id == 1)
 
         print(f"{time():.2f}" + self.YELLOW + f"[Bert]    Analized \"{text}\" : Is it vishing ? {is_vishing}, confidence : {confidence}" + self.DEFAULT)
-        return is_vishing, confidence
+        self.newNote = (is_vishing, confidence)
 
-# #-------------------- Callback Methods --------------------
+#-------------------- Callback Methods --------------------
 
-#     def register_callback(self, callback):
-#         self._callback = callback
-#         print("callback registered")
+    def register_callback(self, callback):
+        self._callback = callback
+        print("callback registered")
 
-#     @property # Décorateur indiquant que la fonction est un getteur
-#     def newTextBuffer(self):
-#         return self._newTextBuffer
+    @property # Décorateur indiquant que la fonction est un getteur
+    def newNote(self):
+        return self._newNote
 
-#     @LastOutputFilepath.setter # Décorateur indiquant que la fonction est un setteur
-#     def newTextBuffer(self, value):
-#         self._newTextBuffer = value
-#         if self._callback:
-#             self._callback(value)  # déclenché automatiquement à chaque changement
+    @newNote.setter # Décorateur indiquant que la fonction est un setteur
+    def newNote(self, value):
+        self._newNote = value
+        if self._callback:
+            self._callback(value)  # déclenché automatiquement à chaque changement
