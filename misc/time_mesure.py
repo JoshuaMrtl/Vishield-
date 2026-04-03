@@ -1,17 +1,18 @@
 import re
-from collections import defaultdict
 
 LOG_FILE = "vishield_output.txt"
 
 # Regex patterns
 pattern = re.compile(
-    r'^(\d+\.\d+)\s+\[(Speaker|Mic|Mixer|Whisper)\]\s+(.+)$'
+    r'^(\d+\.\d+)\s+\[(Speaker|Mic|Mixer|Whisper|Bert|App)\]\s+(.+)$'
 )
 
 mic_capture    = {}   # buffer_id -> timestamp
 mixer_save     = {}   # buffer_id -> timestamp
 whisper_start  = {}   # buffer_id -> timestamp
 whisper_end    = {}   # buffer_id -> timestamp
+bert_start     = {}   # text -> timestamp
+bert_end       = {}   # text -> timestamp
 
 with open(LOG_FILE, "r", encoding="utf-8") as f:
     for line in f:
@@ -23,9 +24,9 @@ with open(LOG_FILE, "r", encoding="utf-8") as f:
         if not m:
             continue
 
-        ts     = float(m.group(1))
-        actor  = m.group(2)
-        msg    = m.group(3)
+        ts    = float(m.group(1))
+        actor = m.group(2)
+        msg   = m.group(3)
 
         # [Mic] Buffer Y captured
         if actor == "Mic":
@@ -38,7 +39,7 @@ with open(LOG_FILE, "r", encoding="utf-8") as f:
         elif actor == "Mixer":
             bm = re.search(r'Buffer (\d+) saved.*callRecord_\d+_(\d+)\.wav', msg)
             if bm:
-                buf_id = int(bm.group(2))   # Y in callRecord_X_Y
+                buf_id = int(bm.group(2))
                 mixer_save[buf_id] = ts
 
         # [Whisper] Beginning transcription of file recordings\callRecord_X_Y.wav
@@ -55,28 +56,48 @@ with open(LOG_FILE, "r", encoding="utf-8") as f:
                 buf_id = int(bm.group(1))
                 whisper_end[buf_id] = ts
 
+        # [Bert] Analizing "..."
+        elif actor == "Bert" and msg.startswith("Analizing"):
+            bm = re.search(r'Analizing\s+"(.+)"', msg)
+            if bm:
+                text = bm.group(1)
+                bert_start[text] = ts
+
+        # [Bert] Analized "..." : Is it vishing ? ...
+        elif actor == "Bert" and msg.startswith("Analized"):
+            bm = re.search(r'Analized\s+"(.+)"\s+:', msg)
+            if bm:
+                text = bm.group(1)
+                bert_end[text] = ts
+
 
 def avg(deltas):
     return sum(deltas) / len(deltas) if deltas else float('nan')
 
 
-# ── Metric 1 : Mic capture → Mixer save (same buffer id) ─────────────────────
+# ── Metric 1 : Mic capture → Mixer save ──────────────────────────────────────
 deltas_mic_to_mixer = []
 for buf_id, mic_ts in mic_capture.items():
     if buf_id in mixer_save:
         deltas_mic_to_mixer.append(mixer_save[buf_id] - mic_ts)
 
-# ── Metric 2 : Mixer save → Whisper start (same buffer id) ───────────────────
+# ── Metric 2 : Mixer save → Whisper start ────────────────────────────────────
 deltas_mixer_to_whisper_start = []
 for buf_id, mix_ts in mixer_save.items():
     if buf_id in whisper_start:
         deltas_mixer_to_whisper_start.append(whisper_start[buf_id] - mix_ts)
 
-# ── Metric 3 : Whisper start → Whisper end (same buffer id) ──────────────────
+# ── Metric 3 : Whisper start → Whisper end ───────────────────────────────────
 deltas_whisper_duration = []
 for buf_id, ws_ts in whisper_start.items():
     if buf_id in whisper_end:
         deltas_whisper_duration.append(whisper_end[buf_id] - ws_ts)
+
+# ── Metric 4 : Bert Analizing → Bert Analized ────────────────────────────────
+deltas_bert_duration = []
+for text, bs_ts in bert_start.items():
+    if text in bert_end:
+        deltas_bert_duration.append(bert_end[text] - bs_ts)
 
 
 print("=" * 60)
@@ -104,6 +125,14 @@ if deltas_whisper_duration:
     for i, d in enumerate(deltas_whisper_duration):
         print(f"   Buffer {i} : {d:.3f} s")
     print(f"   ► Moyenne : {avg(deltas_whisper_duration):.3f} s")
+else:
+    print("   Aucune donnée appariée.")
+
+print(f"\n④ Durée d'analyse Bert     (Analizing → Analized)")
+if deltas_bert_duration:
+    for i, d in enumerate(deltas_bert_duration):
+        print(f"   Buffer {i} : {d:.3f} s")
+    print(f"   ► Moyenne : {avg(deltas_bert_duration):.3f} s")
 else:
     print("   Aucune donnée appariée.")
 
