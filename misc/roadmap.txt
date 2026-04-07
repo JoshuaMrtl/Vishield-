@@ -1,0 +1,7 @@
+Changement de techno d'AudioRecorder --> Besoin de compatibilité linux
+Vérification de la compatibilité des dépendances avec l'outil de conversion android
+Tester la conversion en APK avec Kivy/Buildozer
+Tester Chaquopy
+Recoder l'appli en android natif
+
+Si Kivy fonctionne --> Ajouter une fonction de reconnaissance de l'appareil --> utiliser un modèle d'IA plus léger sur android
