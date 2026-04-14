@@ -1,64 +1,33 @@
 #!/bin/bash
 
-# Détection du système d'exploitation
-OS="$(uname -s)"
-case "$OS" in
-  Linux*)
-    echo "Vous utilisez Linux, cet outil utilise la librairie PyAudioWPatch qui ne fonctionne que sur Windows."
-    exit 1
-    ;;
-  Darwin*)
-    echo "Vous utilisez macOS, cet outil utilise la librairie PyAudioWPatch qui ne fonctionne que sur Windows."
-    exit 1
-    ;;
-  CYGWIN*|MINGW32*|MSYS*|MINGW*)
-    echo "Vous utilisez Windows, vérification des dépendances..."
-    ;;
-  *)
-    echo "OS non reconnu : $OS. Cet outil utilise la librairie PyAudioWPatch qui ne fonctionne que sur Windows."
-    exit 1
-    ;;
-esac
-
 VENV_DIR=".venv"
 
-# ── 1. Trouver Python 3.11 ──────────────────────────────────────────────────
-PYTHON311=""
-for cmd in python3.11 py python3 python; do
+# ── 1. Trouver Python ──────────────────────────────────────────────────
+PYTHON=""
+for cmd in python3 python py; do
     if command -v "$cmd" &> /dev/null; then
         VERSION=$("$cmd" --version 2>&1 | grep -oP '3\.\d+')
-        if [ "$VERSION" = "3.11" ]; then
-            PYTHON311="$cmd"
-            break
-        fi
+        echo "python version '$VERSION'"
+        PYTHON="$cmd"
+        break
     fi
 done
 
-if [ -z "$PYTHON311" ] && command -v py &> /dev/null; then
-    py -3.11 --version &> /dev/null && PYTHON311="py -3.11"
-fi
-
-if [ -z "$PYTHON311" ]; then
-    echo ""
-    echo "ERREUR : Python 3.11 est requis mais introuvable."
-    echo "PyAudioWPatch n'est pas compatible avec Python 3.12+."
-    echo "Télécharge Python 3.11 ici : https://www.python.org/downloads/release/python-3119/"
-    echo "(Coche 'Add Python to PATH' lors de l'installation)"
+if [ -z "$PYTHON" ]; then
+    echo "ERREUR : Aucun interpréteur Python 3 trouvé."
     exit 1
 fi
 
-echo "Python 3.11 trouvé."
-
-# ── 2. Recréer le venv si --reset demandé ──────────────────────────────────
+# ── 2. Recréer le venv si --reset demandé ─────────────────────────────
 if [ "$1" = "--reset" ] && [ -d "$VENV_DIR" ]; then
     echo "Suppression de l'ancien environnement virtuel..."
     rm -rf "$VENV_DIR"
 fi
 
-# ── 3. Créer le venv si inexistant ─────────────────────────────────────────
+# ── 3. Créer le venv si inexistant ────────────────────────────────────
 if [ ! -d "$VENV_DIR" ]; then
-    echo "Création de l'environnement virtuel Python 3.11 dans '$VENV_DIR'..."
-    $PYTHON311 -m venv "$VENV_DIR"
+    echo "Création de l'environnement virtuel Python dans '$VENV_DIR'..."
+    $PYTHON -m venv "$VENV_DIR"
     if [ $? -ne 0 ]; then
         echo "ERREUR : Impossible de créer le venv."
         exit 1
@@ -66,91 +35,105 @@ if [ ! -d "$VENV_DIR" ]; then
     echo "Environnement virtuel créé."
 fi
 
-# ── 4. Chemins du venv ─────────────────────────────────────────────────────
-VENV_PYTHON="$VENV_DIR/Scripts/python"
-VENV_PIP="$VENV_DIR/Scripts/pip"
+# ── 4. Chemins du venv ────────────────────────────────────────────────
+if [ -d "$VENV_DIR/Scripts" ]; then
+    VENV_PYTHON="$VENV_DIR/Scripts/python"
+    VENV_PIP="$VENV_DIR/Scripts/pip"
+else
+    VENV_PYTHON="$VENV_DIR/bin/python"
+    VENV_PIP="$VENV_DIR/bin/pip"
+fi
 
-# ── 5. Installer / vérifier les dépendances ────────────────────────────────
+# ── Fonction utilitaire : installer et vérifier un paquet ─────────────
+install_and_check() {
+    local import_name="$1"   # nom du module Python  (ex: soundcard)
+    local pip_name="$2"      # nom du paquet pip      (ex: soundcard)
+    local label="$3"         # nom affiché à l'écran  (ex: soundcard)
 
-# ffmpeg
-# if [ $? -ne 0 ]; then
-#     echo ""
-#     echo "Installation de ffmpeg dans le venv..."
-#     echo ""
-#     winget install ffmpeg --source winget
-#     if [ $? -ne 0 ]; then
-#         echo ""
-#         echo "ERREUR : Echec de l'installation de faster-whisper."
-#         echo ""
-#         exit 1
-#     fi
-# fi
-
-$VENV_PYTHON -c "import faster_whisper" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "Installation de faster-whisper dans le venv..."
-    echo ""
-    $VENV_PIP install faster-whisper
+    "$VENV_PYTHON" -c "import ${import_name}" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo ""
-        echo "ERREUR : Echec de l'installation de faster-whisper."
+        echo "Installation de ${label} dans le venv..."
         echo ""
-        exit 1
+        "$VENV_PIP" install --no-cache-dir "${pip_name}"
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "ERREUR : Echec de l'installation de ${label}."
+            echo ""
+            exit 1
+        fi
+        # Vérification post-installation
+        "$VENV_PYTHON" -c "import ${import_name}" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "ERREUR : ${label} est installé mais ne peut pas être importé."
+            echo "Détail de l'erreur :"
+            "$VENV_PYTHON" -c "import ${import_name}"
+            echo ""
+            echo "Des dépendances système sont peut-être manquantes (voir ci-dessus)."
+            echo ""
+            exit 1
+        fi
+    fi
+}
+
+# ── 5. Dépendances système pour les librairies audio ──────────────────
+# soundcard et sounddevice nécessitent libpulse et libasound sur Linux
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    MISSING_PKGS=()
+    for pkg in libpulse-dev libasound2-dev portaudio19-dev; do
+        if ! dpkg -s "$pkg" &>/dev/null; then
+            MISSING_PKGS+=("$pkg")
+        fi
+    done
+
+    if [ ${#MISSING_PKGS[@]} -ne 0 ]; then
+        echo ""
+        echo "Installation des dépendances système audio manquantes : ${MISSING_PKGS[*]}"
+        echo ""
+        sudo apt-get install -y "${MISSING_PKGS[@]}"
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "ERREUR : Impossible d'installer les dépendances système."
+            echo "Essayez manuellement : sudo apt-get install -y ${MISSING_PKGS[*]}"
+            echo ""
+            exit 1
+        fi
     fi
 fi
 
-$VENV_PYTHON -c "import safetensors" 2>/dev/null
+# ── 6. Installer / vérifier les dépendances Python ────────────────────
+
+install_and_check "faster_whisper"  "faster-whisper"  "faster-whisper"
+install_and_check "safetensors"     "safetensors"     "safetensors"
+# soundcard a un bug avec sys.argv quand importé via -c : on lui passe un argv fictif
+"$VENV_PYTHON" -c "import sys; sys.argv = ['vishield', 'dummy']; import soundcard" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo ""
-    echo "Installation de safetensors dans le venv..."
+    echo "Installation de soundcard dans le venv..."
     echo ""
-    $VENV_PIP install safetensors
+    "$VENV_PIP" install --no-cache-dir soundcard
     if [ $? -ne 0 ]; then
         echo ""
-        echo "ERREUR : Echec de l'installation de safetensors."
+        echo "ERREUR : Echec de l'installation de soundcard."
         echo ""
         exit 1
     fi
-fi
-
-$VENV_PYTHON -c "import pyaudiowpatch" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "Installation de PyAudioWPatch==0.2.12.6 dans le venv..."
-    echo ""
-    $VENV_PIP install --no-cache-dir "PyAudioWPatch==0.2.12.6"
+    "$VENV_PYTHON" -c "import sys; sys.argv = ['vishield', 'dummy']; import soundcard" 2>/dev/null
     if [ $? -ne 0 ]; then
         echo ""
-        echo "ERREUR : Echec de l'installation de PyAudioWPatch."
-        echo ""
+        echo "ERREUR : soundcard est installé mais ne peut pas être importé."
+        "$VENV_PYTHON" -c "import sys; sys.argv = ['vishield', 'dummy']; import soundcard"
         exit 1
     fi
 fi
+install_and_check "sounddevice"     "sounddevice"     "sounddevice"
+install_and_check "numpy"           "numpy"           "numpy"
+install_and_check "FreeSimpleGUI"   "FreeSimpleGUI"   "FreeSimpleGUI"
+install_and_check "transformers"    "transformers"    "transformers"
 
-$VENV_PYTHON -c "import numpy" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "Installation de numpy dans le venv..."
-    echo ""
-    $VENV_PIP install --no-cache-dir numpy
-fi
-
-$VENV_PYTHON -c "import FreeSimpleGUI" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "Installation de FreeSimpleGUI dans le venv..."
-    echo ""
-    $VENV_PIP install --no-cache-dir FreeSimpleGUI
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo "ERREUR : Echec de l'installation de FreeSimpleGUI."
-        echo ""
-        exit 1
-    fi
-fi
-
-$VENV_PYTHON -c "import torch" 2>/dev/null
+# torch : traitement spécial (détection GPU)
+"$VENV_PYTHON" -c "import torch" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "Détection du GPU Nvidia..."
     nvidia-smi &>/dev/null
@@ -158,12 +141,12 @@ if [ $? -ne 0 ]; then
         echo ""
         echo "GPU Nvidia détecté. Installation de torch avec support CUDA 12.1..."
         echo ""
-        $VENV_PIP install --no-cache-dir torch #--index-url https://download.pytorch.org/whl/cu121
+        "$VENV_PIP" install --no-cache-dir torch # --index-url https://download.pytorch.org/whl/cu121
     else
         echo ""
         echo "Aucun GPU Nvidia détecté. Installation de torch (version CPU)..."
         echo ""
-        $VENV_PIP install --no-cache-dir torch
+        "$VENV_PIP" install --no-cache-dir torch
     fi
     if [ $? -ne 0 ]; then
         echo ""
@@ -173,37 +156,23 @@ if [ $? -ne 0 ]; then
     fi
 fi
 
-$VENV_PYTHON -c "import transformers" 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "Installation de transformers dans le venv..."
-    echo ""
-    $VENV_PIP install --no-cache-dir transformers
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo "ERREUR : Echec de l'installation de transformers."
-        echo ""
-        exit 1
-    fi
-fi
-
-# ── 6. Diagnostic : afficher les versions installées ──────────────────────
+# ── 7. Diagnostic : afficher les versions installées ──────────────────
 if [ "$1" = "-v" ]; then
-
-echo ""
-echo "Versions installées :"
-$VENV_PYTHON --version
-$VENV_PIP show PyAudioWPatch  | grep -E "^(Name|Version)"
-$VENV_PIP show numpy          | grep -E "^(Name|Version)"
-$VENV_PIP show FreeSimpleGUI  | grep -E "^(Name|Version)"
-$VENV_PIP show torch          | grep -E "^(Name|Version)"
-$VENV_PIP show transformers   | grep -E "^(Name|Version)"
-$VENV_PIP show safetensors    | grep -E "^(Name|Version)"
-$VENV_PIP show faster-whisper | grep -E "^(Name|Version)"
-echo ""
+    echo ""
+    echo "Versions installées :"
+    "$VENV_PYTHON" --version
+    "$VENV_PIP" show soundcard      | grep -E "^(Name|Version)"
+    "$VENV_PIP" show sounddevice    | grep -E "^(Name|Version)"
+    "$VENV_PIP" show numpy          | grep -E "^(Name|Version)"
+    "$VENV_PIP" show FreeSimpleGUI  | grep -E "^(Name|Version)"
+    "$VENV_PIP" show torch          | grep -E "^(Name|Version)"
+    "$VENV_PIP" show transformers   | grep -E "^(Name|Version)"
+    "$VENV_PIP" show safetensors    | grep -E "^(Name|Version)"
+    "$VENV_PIP" show faster-whisper | grep -E "^(Name|Version)"
+    echo ""
 fi
 
-# ── 7. Lancer le programme ─────────────────────────────────────────────────
+# ── 8. Lancer le programme ────────────────────────────────────────────
 echo "Lancement de Vishield..."
 "$VENV_PYTHON" src/interface.py
 EXIT_CODE=$?

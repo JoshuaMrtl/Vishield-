@@ -1,322 +1,286 @@
-import pyaudiowpatch as pyaudio
+"""
+RealTimeAudioRecorder — Cross-platform (Windows / Linux)
+=========================================================
+Dépendances :
+    pip install soundcard sounddevice numpy
+
+Sur Linux, soundcard utilise PulseAudio ou PipeWire pour le loopback.
+Sur Windows, soundcard utilise WASAPI.
+
+Utilisation :
+    recorder = RealTimeAudioRecorder()
+    recorder.record()
+    ...
+    recorder.stop_recording()
+"""
+
+import os
+import sys
+from time import time
 import wave
 import threading
 import numpy as np
-import os
-import time
 
+import soundcard as sc
+import sounddevice as sd
+
+GREEN   = "\033[92m"
+YELLOW  = "\033[93m"
+CYAN    = "\033[96m"
+RED     = "\033[91m"
+DEFAULT = "\033[0m"
+
+
+# ───────────────────────── main class ───────────────────────────
 
 class RealTimeAudioRecorder:
     """
-    Enregistre simultanément le microphone et la sortie audio système (loopback WASAPI),
-    mélange les deux flux et sauvegarde le résultat en fichiers .wav de 5 secondes.
+    Enregistre simultanément le microphone et la sortie audio système (loopback),
+    mélange les deux flux et sauvegarde le résultat en fichiers .wav de BUFFER secondes.
 
-    Utilisation :
-        recorder = RealTimeAudioRecorder()
-        recorder.record()
-        ...
-        recorder.stop_recording()
+    Méthodes publiques
+    ------------------
+    record()            Lance l'enregistrement en arrière-plan (non bloquant).
+    stop_recording()    Arrête l'enregistrement proprement.
+    register_callback() Enregistre un callback appelé à chaque nouveau fichier sauvegardé.
+
+    Propriété
+    ---------
+    LastOutputFilepath  Chemin du dernier fichier .wav sauvegardé.
     """
 
-    # Audio recording parameters
-    FORMAT  = pyaudio.paInt16  # 16-bit resolution
-    CHANNELS = 2               # Stereo
-    RATE    = 44100            # 44.1kHz sampling rate
-    CHUNK   = 1024             # Samples per chunk
-    BUFFER  = 5                # Buffer duration in seconds
+    # ── Paramètres audio ──────────────────────────────────────────
+    RATE     = 44100   # Hz — taux d'échantillonnage cible des fichiers de sortie
+    CHANNELS = 2       # Stéréo
+    BUFFER   = 5       # Durée de chaque fichier .wav (secondes)
 
-    # Text colors
-    DEFAULT = '\033[0m'
-    RED     = '\033[91m'
-    GREEN   = '\033[92m'
-    YELLOW  = '\033[93m'
-    BLUE    = '\033[94m'
-    PURPLE  = '\033[95m'
+    # ── Paramètres de fichiers ────────────────────────────────────
+    OUTPUT_DIR = "recordings"
+    BASE_NAME  = "callRecord"
 
     def __init__(self):
-        self.output_dir = "recordings"
-        self.base_name  = "callRecord"
+        self._recording      : bool            = False
+        self._callback                         = None
+        self._LastOutputFilepath               = None
 
-        # Chaque instance a son propre état — pas de globals
-        self._audio          = None
-        self._speaker_thread = None
-        self._mic_thread     = None
-        self._mixer_thread   = None
-        self._recording      = False
+        self._speaker_thread : threading.Thread | None = None
+        self._mic_thread     : threading.Thread | None = None
+        self._mixer_thread   : threading.Thread | None = None
 
-        self._speaker_buffers = {}
-        self._mic_buffers     = {}
-        self._speaker_lock    = threading.Lock()
-        self._mic_lock        = threading.Lock()
+        # Buffers partagés  {buf_id: np.ndarray (int32, stereo aplati)}
+        self._speaker_buf : dict[int, np.ndarray] = {}
+        self._mic_buf     : dict[int, np.ndarray] = {}
+        self._spk_lock    = threading.Lock()
+        self._mic_lock    = threading.Lock()
 
-        self._buffers_to_mix  = []
-        self._mix_lock        = threading.Lock()
-        self._mix_event       = threading.Event()
-        self._recorders_done  = threading.Event()
+        # File des IDs prêts à mixer
+        self._ready_ids   : list[int]          = []
+        self._ready_lock  = threading.Lock()
+        self._ready_event = threading.Event()
+        self._done_event  = threading.Event()   # recorders terminés
 
-        self._output_file_path = self._next_output_path()
+        self._output_prefix = self._next_output_prefix()
 
-        self._LastOutputFilepath = None
-        self._callback = None
+    # ══════════════════════════════════════════════════════════════
+    #  Méthodes publiques
+    # ══════════════════════════════════════════════════════════════
 
-        self.start_time = time.time()
-
-# -------------------- Public Methods --------------------
-    def record(self):
+    def record(self) -> None:
         """Lance l'enregistrement en arrière-plan (non bloquant)."""
         if self._recording:
             raise RuntimeError("Un enregistrement est déjà en cours.")
 
         self._reset_state()
-        self._output_file_path = self._next_output_path()
-
-        print("\n----------RealTimeAudioRecorder---------\n")
-        print(f"Fichiers de sortie : {self._output_file_path}*.wav")
-        print("Enregistrement en cours...\n")
-
+        self._output_prefix = self._next_output_prefix()
         self._recording = True
-        self._audio = pyaudio.PyAudio()
 
-        self._speaker_thread = threading.Thread(target=self._record_speaker, daemon=True)
-        self._mic_thread = threading.Thread(target=self._record_microphone, daemon=True)
-        self._mixer_thread = threading.Thread(target=self._mix_and_save, daemon=True)
+        print(f"{time():.2f} {YELLOW}[REC]     Démarrage — sortie : {self._output_prefix}*.wav {DEFAULT}", flush=True)
+        print(f"{time():.2f} {YELLOW}[REC]     Durée par buffer : {self.BUFFER}s  |  Taux : {self.RATE} Hz  |  Canaux : {self.CHANNELS} {DEFAULT}", flush=True)
+
+        self._speaker_thread = threading.Thread(target=self._record_speaker, daemon=True, name="Speaker")
+        self._mic_thread     = threading.Thread(target=self._record_mic,     daemon=True, name="Mic")
+        self._mixer_thread   = threading.Thread(target=self._mix_and_save,   daemon=True, name="Mixer")
 
         self._speaker_thread.start()
         self._mic_thread.start()
         self._mixer_thread.start()
 
-    def stop_recording(self):
+    def stop_recording(self) -> None:
         """Arrête l'enregistrement et attend la fin propre de tous les threads."""
         if not self._recording:
             raise RuntimeError("Aucun enregistrement en cours.")
 
+        print(f"{time():.2f} {YELLOW}[REC]     Arrêt demandé… {DEFAULT}", flush=True)
         self._recording = False
 
-        # Attendre que les deux threads aient posté leur dernier buffer
         self._speaker_thread.join()
         self._mic_thread.join()
 
-        # Signaler au mixer que plus aucun buffer n'arrivera
-        self._recorders_done.set()
-        self._mix_event.set()
+        # Signaler au mixer qu'il n'y aura plus de buffers
+        self._done_event.set()
+        self._ready_event.set()
         self._mixer_thread.join()
 
-        # Ne pas appeler audio.terminate() : Pa_Terminate() crash avec un
-        # segfault sur Windows quand un device loopback WASAPI a été utilisé
-        # (bug connu PyAudioWPatch/PortAudio). Les ressources sont libérées
-        # proprement par Windows, soit à la fin du processus, soit lors du
-        # prochain PyAudio() qui appelle Pa_Initialize() et repart de zéro.
-        self._audio = None
+        print(f"{time():.2f} {YELLOW}[REC]     Tous les threads terminés. {DEFAULT}", flush=True)
 
-        print("\nAll threads finished. Goodbye.")
+    def register_callback(self, callback) -> None:
+        """Enregistre un callable appelé avec le chemin de chaque nouveau fichier .wav."""
+        self._callback = callback
+        print(f"{time():.2f} {YELLOW}[REC]     Callback enregistré. {DEFAULT}", flush=True)
 
-#-------------------- Private Methods --------------------
-    def _reset_state(self):
-        """Remet à zéro tous les buffers et événements pour une nouvelle session."""
-        self._speaker_buffers.clear()
-        self._mic_buffers.clear()
-        self._buffers_to_mix.clear()
-        self._mix_event.clear()
-        self._recorders_done.clear()
+    # ── Propriété LastOutputFilepath ──────────────────────────────
 
-    def _next_output_path(self):
-        """Calcule le prochain préfixe de fichier disponible (ex: recordings/callRecord_3_)."""
-        os.makedirs(self.output_dir, exist_ok=True)
+    @property
+    def LastOutputFilepath(self) -> str | None:
+        return self._LastOutputFilepath
+
+    @LastOutputFilepath.setter
+    def LastOutputFilepath(self, value: str) -> None:
+        self._LastOutputFilepath = value
+        if self._callback:
+            self._callback(value)
+
+    # ══════════════════════════════════════════════════════════════
+    #  Méthodes privées — utilitaires
+    # ══════════════════════════════════════════════════════════════
+
+    def _reset_state(self) -> None:
+        self._speaker_buf.clear()
+        self._mic_buf.clear()
+        self._ready_ids.clear()
+        self._ready_event.clear()
+        self._done_event.clear()
+
+    def _next_output_prefix(self) -> str:
+        os.makedirs(self.OUTPUT_DIR, exist_ok=True)
         i = 0
-        while os.path.isfile(
-                os.path.join(self.output_dir, f"{self.base_name}_{i}_0.wav")):
+        while os.path.isfile(os.path.join(self.OUTPUT_DIR, f"{self.BASE_NAME}_{i}_0.wav")):
             i += 1
-        return os.path.join(self.output_dir, f"{self.base_name}_{i}_")
+        return os.path.join(self.OUTPUT_DIR, f"{self.BASE_NAME}_{i}_")
 
-    def _notify_mix_if_ready(self, buf_id):
-        with self._speaker_lock:
-            has_speaker = buf_id in self._speaker_buffers
+    def _notify_ready(self, buf_id: int) -> None:
+        """Ajoute buf_id à la file du mixer si les deux sources sont disponibles."""
+        with self._spk_lock:
+            has_spk = buf_id in self._speaker_buf
         with self._mic_lock:
-            has_mic = buf_id in self._mic_buffers
-        if has_speaker and has_mic:
-            with self._mix_lock:
-                if buf_id not in self._buffers_to_mix:
-                    self._buffers_to_mix.append(buf_id)
-            self._mix_event.set()
+            has_mic = buf_id in self._mic_buf
+        if has_spk and has_mic:
+            with self._ready_lock:
+                if buf_id not in self._ready_ids:
+                    self._ready_ids.append(buf_id)
+            self._ready_event.set()
 
     @staticmethod
-    def _ensure_stereo(array, channels):
+    def _to_stereo_int32(arr: np.ndarray, channels: int) -> np.ndarray:
+        """Convertit un tableau float32 (frames × ch) en int32 aplati stéréo."""
+        # soundcard retourne (frames, channels) en float32 dans [-1, 1]
         if channels == 1:
-            return np.repeat(array, 2)
-        return array
+            arr = np.repeat(arr, 2, axis=1)   # mono → stéréo
+        elif channels > 2:
+            arr = arr[:, :2]                   # ne garder que L + R
+        int32 = (arr * 32767).astype(np.int32)
+        return int32.flatten()                 # [L0, R0, L1, R1, …]
 
     @staticmethod
-    def _read_chunk_with_timeout(stream, chunk_size, timeout_s):
-        result = [None]
-        def _read():
-            try:
-                result[0] = stream.read(chunk_size, exception_on_overflow=False)
-            except Exception:
-                result[0] = None
-        t = threading.Thread(target=_read, daemon=True)
-        t.start()
-        t.join(timeout=timeout_s)
-        return result[0]
+    def _resample_if_needed(arr: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
+        """Rééchantillonnage linéaire simple si les taux diffèrent."""
+        if src_rate == dst_rate:
+            return arr
+        factor      = dst_rate / src_rate
+        old_len     = arr.shape[0]
+        new_len     = int(old_len * factor)
+        old_indices = np.arange(old_len)
+        new_indices = np.linspace(0, old_len - 1, new_len)
+        if arr.ndim == 1:
+            return np.interp(new_indices, old_indices, arr).astype(arr.dtype)
+        # Plusieurs canaux
+        return np.column_stack([
+            np.interp(new_indices, old_indices, arr[:, c]).astype(arr.dtype)
+            for c in range(arr.shape[1])
+        ])
 
-    @staticmethod
-    def _close_stream_safely(stream):
-        try:
-            stream.stop_stream()
-        except Exception:
-            pass
-        try:
-            stream.close()
-        except Exception:
-            pass
+    # ══════════════════════════════════════════════════════════════
+    #  Threads d'enregistrement
+    # ══════════════════════════════════════════════════════════════
 
-#-------------------- Recording Threads --------------------
-    def _record_speaker(self):
+    def _record_speaker(self) -> None:
+        """Capture la sortie audio système (loopback) via soundcard."""
         try:
-            wasapi_info = self._audio.get_host_api_info_by_type(pyaudio.paWASAPI)
-        except OSError:
-            print("[Speaker] WASAPI not found.")
+            loopback = sc.get_microphone(
+                id=str(sc.default_speaker().name),
+                include_loopback=True
+            )
+        except Exception as e:
+            print(f"{time():.2f} {RED}[Speaker] Impossible d'ouvrir le loopback : {e} {DEFAULT}", flush=True)
             return
 
-        default_speakers = self._audio.get_device_info_by_index(
-            wasapi_info["defaultOutputDevice"])
-        if not default_speakers["isLoopbackDevice"]:
-            for loopback in self._audio.get_loopback_device_info_generator():
-                if default_speakers["name"] in loopback["name"]:
-                    default_speakers = loopback
-                    break
-            else:
-                print("[Speaker] No compatible loopback device found.")
-                return
+        frames_needed = self.BUFFER * self.RATE
+        print(f"{time():.2f} [Speaker] Device : {loopback.name} ", flush=True)
 
-        spk_rate     = int(default_speakers["defaultSampleRate"])
-        spk_channels = default_speakers["maxInputChannels"]
-        frames_per_buffer = int(spk_rate / self.CHUNK * self.BUFFER)
-        chunk_duration    = self.CHUNK / spk_rate
-        read_timeout      = chunk_duration * 4
-        silence_chunk     = b'\x00' * self.CHUNK * spk_channels * 2
+        buf_id = 0
+        with loopback.recorder(samplerate=self.RATE, channels=self.CHANNELS) as rec:
+            print(f"{time():.2f} [Speaker] Enregistrement démarré. ", flush=True)
+            while self._recording:
+                data = rec.record(numframes=frames_needed)  # bloquant ~BUFFER s
+                arr  = self._to_stereo_int32(data, data.shape[1])
+                with self._spk_lock:
+                    self._speaker_buf[buf_id] = arr
+                print(f"{time():.2f} [Speaker] Buffer {buf_id} capturé ", flush=True)
+                self._notify_ready(buf_id)
+                buf_id += 1
 
-        stream = self._audio.open(
-            format=self.FORMAT,
-            input_device_index=default_speakers["index"],
-            channels=spk_channels,
-            rate=spk_rate,
-            input=True,
-            frames_per_buffer=self.CHUNK
-        )
+        print(f"{time():.2f} [Speaker] Arrêté.", flush=True)
 
-        print(f"[Speaker] Device      : {default_speakers['name']}")
-        print(f"[Speaker] Sample rate : {spk_rate} Hz | Channels : {spk_channels}")
-
-        local_id = 0
-        while self._recording:
-            buffer_frames = []
-            deadline = time.monotonic() + self.BUFFER
-
-            while time.monotonic() < deadline:
-                if not self._recording:
-                    break
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                timeout = min(read_timeout, remaining)
-                chunk = self._read_chunk_with_timeout(stream, self.CHUNK, timeout)
-                if chunk is None:
-                    silence_chunks_needed = max(1, int(timeout / chunk_duration))
-                    for _ in range(silence_chunks_needed):
-                        buffer_frames.append(silence_chunk)
-                else:
-                    buffer_frames.append(chunk)
-
-            buffer_frames = buffer_frames[:frames_per_buffer]
-            while len(buffer_frames) < frames_per_buffer:
-                buffer_frames.append(silence_chunk)
-
-            with self._speaker_lock:
-                self._speaker_buffers[local_id] = (
-                    b''.join(buffer_frames), spk_rate, spk_channels)
-
-            print(f"{time.time():.2f}" + f" [Speaker] Buffer {local_id} captured")
-            self._notify_mix_if_ready(local_id)
-            local_id += 1
-
-        self._close_stream_safely(stream)
-        print("[Speaker] Stopped.")
-
-    def _record_microphone(self):
+    def _record_mic(self) -> None:
+        """Capture le microphone via soundcard."""
         try:
-            wasapi_info = self._audio.get_host_api_info_by_type(pyaudio.paWASAPI)
-        except OSError:
-            print("[Mic] WASAPI not found.")
+            mic = sc.default_microphone()
+        except Exception as e:
+            print(f"{time():.2f} [Mic]     Impossible d'ouvrir le microphone : {e}", flush=True)
             return
 
-        default_mic_index = wasapi_info["defaultInputDevice"]
-        default_mic  = self._audio.get_device_info_by_index(default_mic_index)
-        mic_rate     = int(default_mic["defaultSampleRate"])
-        mic_channels = min(default_mic["maxInputChannels"], self.CHANNELS)
-        frames_per_buffer = int(mic_rate / self.CHUNK * self.BUFFER)
-        silence_chunk     = b'\x00' * self.CHUNK * mic_channels * 2
+        frames_needed = self.BUFFER * self.RATE
+        print(f"{time():.2f} [Mic]     Device : {mic.name}", flush=True)
 
-        stream = self._audio.open(
-            format=self.FORMAT,
-            input_device_index=default_mic_index,
-            channels=mic_channels,
-            rate=mic_rate,
-            input=True,
-            frames_per_buffer=self.CHUNK
-        )
+        buf_id = 0
+        with mic.recorder(samplerate=self.RATE, channels=self.CHANNELS) as rec:
+            print(f"{time():.2f} [Mic]     Enregistrement démarré.", flush=True)
+            while self._recording:
+                data = rec.record(numframes=frames_needed)
+                arr  = self._to_stereo_int32(data, data.shape[1])
+                with self._mic_lock:
+                    self._mic_buf[buf_id] = arr
+                print(f"{time():.2f} [Mic]     Buffer {buf_id} capturé ", flush=True)
+                self._notify_ready(buf_id)
+                buf_id += 1
 
-        print(f"[Mic]     Device      : {default_mic['name']}")
-        print(f"[Mic]     Sample rate : {mic_rate} Hz | Channels : {mic_channels}\n")
+        print(f"{time():.2f} [Mic]     Arrêté. ", flush=True)
 
-        local_id = 0
-        while self._recording:
-            buffer_frames = []
-            deadline = time.monotonic() + self.BUFFER
+    # ══════════════════════════════════════════════════════════════
+    #  Thread de mixage et sauvegarde
+    # ══════════════════════════════════════════════════════════════
 
-            while time.monotonic() < deadline:
-                if not self._recording:
-                    break
-                data = stream.read(self.CHUNK, exception_on_overflow=False)
-                buffer_frames.append(data)
-
-            while len(buffer_frames) < frames_per_buffer:
-                buffer_frames.append(silence_chunk)
-
-            with self._mic_lock:
-                self._mic_buffers[local_id] = (
-                    b''.join(buffer_frames), mic_rate, mic_channels)
-
-            print(f"{time.time():.2f}" + f" [Mic]     Buffer {local_id} captured")
-            self._notify_mix_if_ready(local_id)
-            local_id += 1
-
-        self._close_stream_safely(stream)
-        print("[Mic] Stopped.")
-
-    def _mix_and_save(self):
-        os.makedirs(self.output_dir, exist_ok=True)
+    def _mix_and_save(self) -> None:
+        """Mélange les buffers speaker + mic et les sauvegarde en .wav."""
+        os.makedirs(self.OUTPUT_DIR, exist_ok=True)
 
         while True:
-            self._mix_event.wait(timeout=0.2)
-            self._mix_event.clear()
+            self._ready_event.wait(timeout=0.2)
+            self._ready_event.clear()
 
+            # Vider la file
             while True:
-                with self._mix_lock:
-                    if not self._buffers_to_mix:
+                with self._ready_lock:
+                    if not self._ready_ids:
                         break
-                    buf_id = self._buffers_to_mix.pop(0)
+                    buf_id = self._ready_ids.pop(0)
 
-                with self._speaker_lock:
-                    spk_data, spk_rate, spk_ch = self._speaker_buffers.pop(buf_id)
+                with self._spk_lock:
+                    spk = self._speaker_buf.pop(buf_id)
                 with self._mic_lock:
-                    mic_data, mic_rate, mic_ch = self._mic_buffers.pop(buf_id)
+                    mic = self._mic_buf.pop(buf_id)
 
-                spk = np.frombuffer(spk_data, dtype=np.int16).astype(np.int32)
-                mic = np.frombuffer(mic_data, dtype=np.int16).astype(np.int32)
-
-                spk = self._ensure_stereo(spk, spk_ch)
-                mic = self._ensure_stereo(mic, mic_ch)
-
+                # Aligner les longueurs
                 length = max(len(spk), len(mic))
                 if len(spk) < length:
                     spk = np.pad(spk, (0, length - len(spk)))
@@ -325,44 +289,38 @@ class RealTimeAudioRecorder:
 
                 mixed = np.clip(spk + mic, -32768, 32767).astype(np.int16)
 
-                filepath = self._output_file_path + str(buf_id) + ".wav"
-                with wave.open(filepath, 'wb') as wf:
+                filepath = self._output_prefix + str(buf_id) + ".wav"
+                with wave.open(filepath, "wb") as wf:
                     wf.setnchannels(self.CHANNELS)
-                    wf.setsampwidth(2)
+                    wf.setsampwidth(2)           # 16 bits = 2 octets
                     wf.setframerate(self.RATE)
                     wf.writeframes(mixed.tobytes())
 
-                print(f"{time.time():.2f}" + self.GREEN + f" [Mixer]   Buffer {buf_id} saved → {filepath}" + self.DEFAULT)
+                print(f"{time():.2f} {GREEN}[Mixer]   Buffer {buf_id} sauvegardé → {filepath} {DEFAULT}", flush=True)
                 self.LastOutputFilepath = filepath
 
-            if self._recorders_done.is_set():
-                with self._mix_lock:
-                    if not self._buffers_to_mix:
+            # Sortir uniquement quand les recorders sont finis ET la file est vide
+            if self._done_event.is_set():
+                with self._ready_lock:
+                    if not self._ready_ids:
                         break
 
-        print("[Mixer] Done.")
+        print(f"{time():.2f} {GREEN}[Mixer]   Terminé. {DEFAULT}", flush=True)
 
-#-------------------- Callback Methods --------------------
-    def register_callback(self, callback):
-        self._callback = callback
-        print("RTAR callback registered")
 
-    @property # Décorateur indiquant que la fonction est un getteur
-    def LastOutputFilepath(self):
-        return self._LastOutputFilepath
-
-    @LastOutputFilepath.setter # Décorateur indiquant que la fonction est un setteur
-    def LastOutputFilepath(self, value):
-        self._LastOutputFilepath = value
-        if self._callback:
-            self._callback(value)  # déclenché automatiquement à chaque changement
-
+# ══════════════════════════════════════════════════════════════════
+#  Point d'entrée
+# ══════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     recorder = RealTimeAudioRecorder()
     recorder.record()
-    input("Press Enter to stop...\n")
+    try:
+        input("\nAppuyez sur Entrée pour arrêter…\n")
+    except KeyboardInterrupt:
+        pass
     recorder.stop_recording()
-    # os._exit() contourne le cleanup Python/PortAudio qui cause le segfault.
-    # Tous les fichiers .wav sont deja fermes et flushed a ce stade.
+    # os._exit évite le nettoyage Python/PortAudio qui peut causer un segfault
+    # sur certaines configurations Windows.  Tous les .wav sont fermés et
+    # flushés à ce stade.
     os._exit(0)

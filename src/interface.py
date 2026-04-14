@@ -1,7 +1,7 @@
 import FreeSimpleGUI as sg
 from time import time
 
-from soundcard_RealTimeAudioRecorder import RealTimeAudioRecorder
+from RealTimeAudioRecorder import RealTimeAudioRecorder
 from SpeechToText import Whisper
 from TextToNote import Bert
 
@@ -175,7 +175,7 @@ def main():
         
         window.close()
         layout = create_layout_3_listening()
-        window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+        window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
         current_state = 1
 
     try: # Loading Bert
@@ -191,7 +191,7 @@ def main():
         
         window.close()
         layout = create_layout_3_listening()
-        window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+        window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
         current_state = 1
 
     while True:
@@ -204,7 +204,7 @@ def main():
         if current_state == 1 and event == '-START-':
             window.close()
             layout = create_layout_2_transition()
-            window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+            window = sg.Window('Vishield - En attente', layout, size=window_size, element_justification='c', finalize=True)
             current_state = 2
             
             # On force la fenêtre à s'afficher avant de geler l'interface avec le chargement
@@ -212,7 +212,7 @@ def main():
 
             window.close()
             layout = create_layout_3_listening()
-            window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+            window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
             current_state = 3
 
             recorder = RealTimeAudioRecorder()
@@ -236,13 +236,13 @@ def main():
                         if confidence >= 85:
                             window.close()
                             layout = create_layout_5_alert_confirmed()
-                            window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+                            window = sg.Window('Vishield - Alerte', layout, size=window_size, element_justification='c', finalize=True)
                             current_state = 5
                         # Si le modèle détecte du vishing mais avec un petit doute, on passe au orange
                         else:
                             window.close()
                             layout = create_layout_4_alert_probable()
-                            window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+                            window = sg.Window('Vishield - Alerte', layout, size=window_size, element_justification='c', finalize=True)
                             current_state = 4
                     else:
                         # Si tout est normal, on efface le champ texte pour la phrase suivante
@@ -252,21 +252,21 @@ def main():
             elif event == '-MANUAL_ALERT-' or event == '-VISHING_PROBABLE-':
                 window.close()
                 layout = create_layout_4_alert_probable()
-                window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+                window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
                 current_state = 4
             
             # Triche (bouton vert) pour tester l'écran 5
             elif event == '-LISTENING_ICON-' or event == '-VISHING_CONFIRMED-': 
                 window.close()
                 layout = create_layout_5_alert_confirmed()
-                window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+                window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
                 current_state = 5
 
         # Retour à l'état initial (Faux positifs)
         elif current_state == 4 and event == '-FALSE_POS_4-':
             window.close()
             layout = create_layout_1_off()
-            window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+            window = sg.Window('Vishield - En Attente', layout, size=window_size, element_justification='c', finalize=True)
 
             recorder.stop_recording()
             
@@ -276,7 +276,7 @@ def main():
             if event == '-FALSE_POS_5-' or event == '-CALLBACK-':
                 window.close()
                 layout = create_layout_1_off()
-                window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+                window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
 
                 recorder.stop_recording()
 
