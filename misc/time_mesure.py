@@ -30,14 +30,14 @@ with open(LOG_FILE, "r", encoding="utf-8") as f:
 
         # [Mic] Buffer Y captured
         if actor == "Mic":
-            bm = re.search(r'Buffer (\d+) captured', msg)
+            bm = re.search(r'Buffer (\d+) captur', msg)
             if bm:
                 buf_id = int(bm.group(1))
                 mic_capture[buf_id] = ts
 
         # [Mixer] Buffer Y saved → recordings\callRecord_X_Y.wav
         elif actor == "Mixer":
-            bm = re.search(r'Buffer (\d+) saved.*callRecord_\d+_(\d+)\.wav', msg)
+            bm = re.search(r'Buffer (\d+) sauv.*callRecord_\d+_(\d+)\.wav', msg)
             if bm:
                 buf_id = int(bm.group(2))
                 mixer_save[buf_id] = ts

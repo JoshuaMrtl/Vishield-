@@ -25,7 +25,8 @@ class Whisper :
         self._check_dependencies()
 
         if torch.cuda.is_available() :
-            self.whisper = WhisperModel("turbo", device="cuda", compute_type="float16")
+            # self.whisper = WhisperModel("turbo", device="cuda", compute_type="float16")
+            self. whisper = WhisperModel("turbo", device="cpu", compute_type="int8")
         else :
            self. whisper = WhisperModel("turbo", device="cpu", compute_type="int8")
         print("[Whisper] Model initialized.")

@@ -1,7 +1,7 @@
 import FreeSimpleGUI as sg
 from time import time
 
-from RealTimeAudioRecorder import RealTimeAudioRecorder
+from soundcard_RealTimeAudioRecorder import RealTimeAudioRecorder
 from SpeechToText import Whisper
 from TextToNote import Bert
 
@@ -159,20 +159,32 @@ def main():
     
     window_size = (400, 600)
     layout = create_layout_1_off()
-    window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+    window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
     current_state = 1
     
-    try:
+    try: # Loading Whisper
         stt = Whisper()
         stt.register_callback(on_new_text_buffer)
+        
+    except Exception as e:
+        sg.popup_scrolled(
+            f"Erreur lors du chargement de Whisper.\n"
+            f"Erreur: {e}",
+            title="Erreur"
+        )
+        
+        window.close()
+        layout = create_layout_3_listening()
+        window = sg.Window('Vishing Detector', layout, size=window_size, element_justification='c', finalize=True)
+        current_state = 1
 
+    try: # Loading Bert
         ttn = Bert()
         ttn.register_callback(on_text_analyzed)
         
     except Exception as e:
         sg.popup_scrolled(
-            f"Erreur lors du chargement du modèle.\n"
-            f"Vérifie que le dossier 'TrainedBert' est bien placé.\n\n"
+            f"Erreur lors du chargement de Bert.\n"
             f"Erreur: {e}",
             title="Erreur"
         )
