@@ -48,13 +48,14 @@ class Whisper :
         # text_buffer = "".join(segment.text.strip() for segment in segments)
 
         # Retourne le texte des 4 derniers buffers audio
-        if self.bufferNumber > 4 :
+        self.bufferMemory.insertAtEnd(" ".join(segment.text.strip() for segment in segments))
+        if self.bufferNumber >= 4 :
             self.bufferMemory.deleteFromBeginning()
         
         else : 
             self.bufferNumber += 1
 
-        text_buffer = self.bufferMemory.getList().join(segment.text.strip() for segment in segments)
+        text_buffer = self.bufferMemory.getList()#.join(segment.text.strip() for segment in segments)
 
         print(f"{time():.2f}" + self.RED + f" [Whisper] {wav_path} converted to new text buffer : {text_buffer}" + self.DEFAULT)
         self.newTextBuffer = text_buffer
@@ -123,7 +124,7 @@ class LinkedList:
             output += temp.data
             temp = temp.next # Move to the next node
 
-        print(output)
+        print(f"------------- [Buffer]  Buffer in memory : {output}")
         return output
 
 
