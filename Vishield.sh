@@ -174,7 +174,7 @@ fi
 
 # ── 8. Lancer le programme ────────────────────────────────────────────
 echo "Lancement de Vishield..."
-"$VENV_PYTHON" src/interface.py
+"$VENV_PYTHON" src/main.py
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

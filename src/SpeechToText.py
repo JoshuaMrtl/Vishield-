@@ -22,6 +22,9 @@ class Whisper :
         self._newTextBuffer = None
         self._callback = None
 
+        self.bufferNumber = 0
+        self.bufferMemory = LinkedList()
+
         self._check_dependencies()
 
         if torch.cuda.is_available() :
@@ -42,7 +45,17 @@ class Whisper :
             raise RuntimeError("Whisper n'est pas initialisé. Appelez init_whisper() d'abord.")
         
         segments, _ = self.whisper.transcribe(wav_path, language="fr")
-        text_buffer = "".join(segment.text.strip() for segment in segments)
+        # text_buffer = "".join(segment.text.strip() for segment in segments)
+
+        # Retourne le texte des 4 derniers buffers audio
+        if self.bufferNumber > 4 :
+            self.bufferMemory.deleteFromBeginning()
+        
+        else : 
+            self.bufferNumber += 1
+
+        text_buffer = self.bufferMemory.getList().join(segment.text.strip() for segment in segments)
+
         print(f"{time():.2f}" + self.RED + f" [Whisper] {wav_path} converted to new text buffer : {text_buffer}" + self.DEFAULT)
         self.newTextBuffer = text_buffer
 
@@ -61,6 +74,59 @@ class Whisper :
         self._newTextBuffer = value
         if self._callback:
             self._callback(value)  # déclenché automatiquement à chaque changement
+
+#-------------------- Classes to implement chained list --------------------
+class Node:
+    def __init__(self, data):
+        self.data = data  # Assigns the given data to the node
+        self.next = None  # Initialize the next attribute to null
+
+class LinkedList:
+    def __init__(self):
+        self.head = None  # Initialize head as None
+
+    def insertAtBeginning(self, new_data):
+        new_node = Node(new_data)  # Create a new node 
+        new_node.next = self.head  # Next for new node becomes the   current head
+        self.head = new_node  # Head now points to the new node
+
+    def insertAtEnd(self, new_data):
+        new_node = Node(new_data)  # Create a new node
+        if self.head is None:
+            self.head = new_node  # If the list is empty, make the new node the head
+            return
+        last = self.head 
+        while last.next:  # Otherwise, traverse the list to find the last node
+            last = last.next
+        last.next = new_node  # Make the new node the next node of the last node
+
+    def deleteFromBeginning(self):
+        if self.head is None:
+            return "The list is empty" # If the list is empty, return this string
+        self.head = self.head.next  # Otherwise, remove the head by making the next node the new head
+
+    def deleteFromEnd(self):
+        if self.head is None:
+            return "The list is empty" 
+        if self.head.next is None:
+            self.head = None  # If there's only one node, remove the head by making it None
+            return
+        temp = self.head
+        while temp.next.next:  # Otherwise, go to the second-last node
+            temp = temp.next
+        temp.next = None  # Remove the last node by setting the next pointer of the second-last node to None
+
+    def getList(self):
+        temp = self.head # Start from the head of the list
+        output = ""
+        while temp:
+            output += temp.data
+            temp = temp.next # Move to the next node
+
+        print(output)
+        return output
+
+
 
 
 if __name__ == "__main__" :

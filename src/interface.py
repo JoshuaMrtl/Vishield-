@@ -1,288 +1,204 @@
 import FreeSimpleGUI as sg
-from time import time
 
-from RealTimeAudioRecorder import RealTimeAudioRecorder
-from SpeechToText import Whisper
-from TextToNote import Bert
-
-
-# --- VARIABLES GLOBALES DU MODÈLE ---
-
-stt = None # Instance of Speech To Text model (Whipser)
-ttn = None # Instance of Text To Note model (Bert)
-window = None
-number_of_analyzed_buffer = 0
-
-# Text colors
-DEFAULT = '\033[0m'
-RED     = '\033[91m'
-GREEN   = '\033[92m'
-YELLOW  = '\033[93m'
-BLUE    = '\033[94m'
-PURPLE  = '\033[95m'
 
 # --- CONFIGURATION DES COULEURS ET FONTS ---
-THEME_COLOR = 'white'
-TEXT_COLOR = '#2c3e50'
-GRAY_BUTTON = '#95a5a6'
+THEME_COLOR  = 'white'
+TEXT_COLOR   = '#2c3e50'
+GRAY_BUTTON  = '#95a5a6'
 ORANGE_BUTTON = '#f1c40f'
 GREEN_BUTTON = '#00c851'
-RED_ALERT = '#e74c3c'
-BLUE_ACTION = '#1e88e5'
-DARK_GRAY = '#4a5568'
-FONT_MAIN = ('Helvetica', 12)
-FONT_TITLE = ('Helvetica', 16, 'bold')
-FONT_ICON = ('Helvetica', 40)
+RED_ALERT    = '#e74c3c'
+BLUE_ACTION  = '#1e88e5'
+DARK_GRAY    = '#4a5568'
+FONT_MAIN    = ('Helvetica', 12)
+FONT_TITLE   = ('Helvetica', 16, 'bold')
+FONT_ICON    = ('Helvetica', 40)
 
 sg.theme_background_color(THEME_COLOR)
 sg.theme_text_element_background_color(THEME_COLOR)
 sg.theme_element_background_color(THEME_COLOR)
 
-# --- FONCTIONS CALLBACK ---
 
-def on_new_file_saved(newFilepath) :
-    # Calls Whisper when Mixer finishes its job
-    global stt
+class Interface:
+    """Gère la fenêtre FreeSimpleGUI et toutes les transitions d'état visuelles."""
 
-    # print(f"[Callback]Nouveau fichier enregistré : {newFilepath}")
-    stt.transcribe_wav(newFilepath)
+    WINDOW_SIZE = (400, 600)
 
-def on_new_text_buffer(text_buffer) : 
-    # Calls Bert when Whisper finishes its job
-    global ttn
-
-    ttn.predict_vishing(text_buffer)
-
-def on_text_analyzed(value) :
-    # Switches views when Bert detects vishing attack
-    # value is a tuple (is_vishing, confidence)
-
-    global BLUE, DEFAULT, number_of_analyzed_buffer, window
-
-    is_vishing = value[0] # Boolean
-    confidence = value[1] # Float
-
-    if is_vishing :
-        if confidence > 50 :
-            print(f"{time():.2f}" + BLUE + f" [App]     Buffer {number_of_analyzed_buffer}: Vishing attack detected with {confidence:.2f}% confidence, stopping the call" + DEFAULT)
-            window.write_event_value('-VISHING_CONFIRMED-', confidence)
-
-        else :
-            print(f"{time():.2f}" + BLUE + f" [App]     Buffer {number_of_analyzed_buffer}: Potential vishing attack, {confidence:.2f}% confidence" + DEFAULT)
-            window.write_event_value('-VISHING_PROBABLE-', confidence)
-
-    else :
-        print(f"{time():.2f}" + BLUE + f" [App]     Buffer {number_of_analyzed_buffer}: no vishing attack detected, {confidence:.2f}% confidence" + DEFAULT)
-        window.write_event_value('-NO_VISHING-', confidence)
-
-    number_of_analyzed_buffer += 1
-
-    
-
-# --- FONCTIONS DE LAYOUTS ---
-
-def create_layout_1_off():
-    return [
-        [sg.VPush()],
-        [sg.Button('⏻', key='-START-', font=FONT_ICON, button_color=('white', '#8e9eab'), border_width=0, size=(4, 2),  pad=(0,0))],
-        [sg.VPush()]
-    ]
-
-def create_layout_2_transition():
-    return [
-        [sg.VPush()],
-        [sg.Button('⏻', key='-TRANSITION-', font=FONT_ICON, button_color=('white', '#ffc107'), border_width=0, size=(4, 2), pad=(0,0))],
-        [sg.Text('Chargement de l\'IA...', font=('Helvetica', 10), text_color=DARK_GRAY, pad=(0, 10))],
-        [sg.VPush()]
-    ]
-
-def create_layout_3_listening():
-    return [
-        [sg.VPush()],
-        [sg.Button('⏻', key='-LISTENING_ICON-', font=FONT_ICON, button_color=('white', '#00c851'), border_width=0, size=(4, 2), pad=(0,0))],
-        [sg.Text('En écoute', font=('Helvetica', 14, 'bold'), text_color=TEXT_COLOR, pad=(0, 10))],
-        
-        # --- NOUVEAU : Zone pour simuler la transcription audio ---
-        [sg.Input(key='-SIMULATED_TEXT-', size=(35, 1), justification='center', tooltip="Tapez une phrase à analyser")],
-        [sg.Button('Simuler l\'audio', key='-ANALYZE-', button_color=('white', BLUE_ACTION), font=('Helvetica', 10, 'bold'), border_width=0, pad=(0,10))],
-        
-        [sg.VPush()],
-        [sg.Button('Je reçois un appel frauduleux', key='-MANUAL_ALERT-', button_color=('white', '#d32f2f'), font=('Helvetica', 12, 'bold'), size=(30, 2), border_width=0, pad=(20, 40))]
-    ]
-
-def create_layout_4_alert_probable():
-    anomalies = [
-        "• Modèles de discours suspects",
-        "• Création d'une situation urgente",
-        "• Demande d'informations sensibles"
-    ]
-    layout = [
-        [sg.VPush()],
-        [sg.Text('⚠', font=('Helvetica', 80), text_color='#ff6f00', background_color=THEME_COLOR, pad=(0,0))],
-        [sg.Text('Probable tentative de vishing', font=FONT_TITLE, text_color='#1a237e', pad=(0, 20))],
-        [sg.Text('Anomalies détectées par l\'IA :', font=('Helvetica', 12, 'bold'), text_color=TEXT_COLOR, justification='left', pad=((20,0), 10))],
-    ]
-    for item in anomalies:
-        layout.append([sg.Text(item, font=FONT_MAIN, text_color=DARK_GRAY, pad=((40,0), 5))])
-
-    layout.append([sg.VPush()])
-    layout.append([sg.Button('Faux positif', key='-FALSE_POS_4-', button_color=('white', DARK_GRAY), font=('Helvetica', 12, 'bold'), size=(30, 2), border_width=0, pad=(20, 40))])
-    return layout
-
-def create_layout_5_alert_confirmed():
-    anomalies = [
-        "• Extorsion financière détectée",
-        "• Usurpation d'identité forte",
-        "• Pression psychologique"
-    ]
-    layout = [
-        [sg.VPush()],
-        [sg.Text('⚠', font=('Helvetica', 80), text_color='#d50000', background_color=THEME_COLOR, pad=(0,0))],
-        [sg.Text("Tentative de vishing détectée avec\ncertitude, l'appel a été interrompu", font=FONT_TITLE, text_color='#1a237e', justification='center', pad=(0, 20))],
-        [sg.Text('Anomalies détectées par l\'IA :', font=('Helvetica', 12, 'bold'), text_color=TEXT_COLOR, justification='left', pad=((20,0), 10))],
-    ]
-    for item in anomalies:
-        layout.append([sg.Text(item, font=FONT_MAIN, text_color=DARK_GRAY, pad=((40,0), 5))])
-
-    layout.append([sg.VPush()])
-    layout.append([
-        sg.Button('Faux positif', key='-FALSE_POS_5-', button_color=('white', DARK_GRAY), font=('Helvetica', 11, 'bold'), size=(15, 2), border_width=0, pad=((20, 10), 40)),
-        sg.Button('Rappeler', key='-CALLBACK-', button_color=('white', '#2962ff'), font=('Helvetica', 11, 'bold'), size=(15, 2), border_width=0, pad=((10, 20), 40))
-    ])
-    return layout
-
-
-# --- LOGIQUE PRINCIPALE ---
-
-def main():
-    global stt, ttn, window
-    
-    window_size = (400, 600)
-    layout = create_layout_1_off()
-    window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-    current_state = 1
-    
-    try: # Loading Whisper
-        stt = Whisper()
-        stt.register_callback(on_new_text_buffer)
-        
-    except Exception as e:
-        sg.popup_scrolled(
-            f"Erreur lors du chargement de Whisper.\n"
-            f"Erreur: {e}",
-            title="Erreur"
+    def __init__(self):
+        layout = self._create_layout_1_off()
+        self.window = sg.Window(
+            'Vishield', layout,
+            size=self.WINDOW_SIZE,
+            element_justification='c',
+            finalize=True
         )
-        
-        window.close()
-        layout = create_layout_3_listening()
-        window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-        current_state = 1
+        self.current_state = 1
 
-    try: # Loading Bert
-        ttn = Bert()
-        ttn.register_callback(on_text_analyzed)
-        
-    except Exception as e:
-        sg.popup_scrolled(
-            f"Erreur lors du chargement de Bert.\n"
-            f"Erreur: {e}",
-            title="Erreur"
+    # ------------------------------------------------------------------
+    # Méthodes publiques : transitions d'état
+    # ------------------------------------------------------------------
+
+    def go_to_state_2_transition(self):
+        """Affiche l'écran de chargement de l'IA (état 2)."""
+        self._rebuild_window('Vishield - En attente', self._create_layout_2_transition())
+        self.current_state = 2
+
+    def go_to_state_3_listening(self):
+        """Affiche l'écran d'écoute active (état 3)."""
+        self._rebuild_window('Vishield', self._create_layout_3_listening())
+        self.current_state = 3
+
+    def go_to_state_4_alert_probable(self):
+        """Affiche l'alerte orange — vishing probable (état 4)."""
+        self._rebuild_window('Vishield - Alerte', self._create_layout_4_alert_probable())
+        self.current_state = 4
+
+    def go_to_state_5_alert_confirmed(self):
+        """Affiche l'alerte rouge — vishing confirmé (état 5)."""
+        self._rebuild_window('Vishield - Alerte', self._create_layout_5_alert_confirmed())
+        self.current_state = 5
+
+    def go_to_state_1_off(self, title='Vishield'):
+        """Revient à l'écran d'accueil (état 1)."""
+        self._rebuild_window(title, self._create_layout_1_off())
+        self.current_state = 1
+
+    # ------------------------------------------------------------------
+    # Méthodes publiques : interaction avec la fenêtre
+    # ------------------------------------------------------------------
+
+    def read(self, timeout=100):
+        """Délègue window.read() pour la boucle d'événements dans main.py."""
+        return self.window.read(timeout=timeout)
+
+    def refresh(self):
+        self.window.refresh()
+
+    def write_event_value(self, event, value):
+        """Permet aux callbacks (threads) d'envoyer des événements à la fenêtre."""
+        self.window.write_event_value(event, value)
+
+    def update_element(self, key, value):
+        """Met à jour la valeur d'un élément de la fenêtre courante."""
+        self.window[key].update(value)
+
+    def show_error_popup(self, message, title='Erreur'):
+        sg.popup_scrolled(message, title=title)
+
+    def close(self):
+        self.window.close()
+
+    # ------------------------------------------------------------------
+    # Méthodes privées : construction des layouts
+    # ------------------------------------------------------------------
+
+    def _rebuild_window(self, title, layout):
+        self.window.close()
+        self.window = sg.Window(
+            title, layout,
+            size=self.WINDOW_SIZE,
+            element_justification='c',
+            finalize=True
         )
-        
-        window.close()
-        layout = create_layout_3_listening()
-        window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-        current_state = 1
 
-    while True:
-        event, values = window.read(timeout=100)
+    def _create_layout_1_off(self):
+        return [
+            [sg.VPush()],
+            [sg.Button('⏻', key='-START-', font=FONT_ICON,
+                       button_color=('white', '#8e9eab'), border_width=0,
+                       size=(4, 2), pad=(0, 0))],
+            [sg.VPush()]
+        ]
 
-        if event == sg.WIN_CLOSED:
-            break
+    def _create_layout_2_transition(self):
+        return [
+            [sg.VPush()],
+            [sg.Button('⏻', key='-TRANSITION-', font=FONT_ICON,
+                       button_color=('white', '#ffc107'), border_width=0,
+                       size=(4, 2), pad=(0, 0))],
+            [sg.Text("Chargement de l'IA...", font=('Helvetica', 10),
+                     text_color=DARK_GRAY, pad=(0, 10))],
+            [sg.VPush()]
+        ]
 
-        # 1 -> 2 -> 3 (Allumage et Chargement du modèle)
-        if current_state == 1 and event == '-START-':
-            window.close()
-            layout = create_layout_2_transition()
-            window = sg.Window('Vishield - En attente', layout, size=window_size, element_justification='c', finalize=True)
-            current_state = 2
-            
-            # On force la fenêtre à s'afficher avant de geler l'interface avec le chargement
-            window.refresh()
+    def _create_layout_3_listening(self):
+        return [
+            [sg.VPush()],
+            [sg.Button('⏻', key='-LISTENING_ICON-', font=FONT_ICON,
+                       button_color=('white', '#00c851'), border_width=0,
+                       size=(4, 2), pad=(0, 0))],
+            [sg.Text('En écoute', font=('Helvetica', 14, 'bold'),
+                     text_color=TEXT_COLOR, pad=(0, 10))],
 
-            window.close()
-            layout = create_layout_3_listening()
-            window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-            current_state = 3
+            # Zone pour simuler la transcription audio
+            [sg.Input(key='-SIMULATED_TEXT-', size=(35, 1),
+                      justification='center', tooltip="Tapez une phrase à analyser")],
+            [sg.Button("Simuler l'audio", key='-ANALYZE-',
+                       button_color=('white', BLUE_ACTION),
+                       font=('Helvetica', 10, 'bold'), border_width=0, pad=(0, 10))],
 
-            recorder = RealTimeAudioRecorder()
-            recorder.register_callback(on_new_file_saved)
-            recorder.record() # lance l'enregistrement avec RealTimeAudioRecorder.py
+            [sg.VPush()],
+            [sg.Button('Je reçois un appel frauduleux', key='-MANUAL_ALERT-',
+                       button_color=('white', '#d32f2f'),
+                       font=('Helvetica', 12, 'bold'), size=(30, 2),
+                       border_width=0, pad=(20, 40))]
+        ]
 
-        # 3 -> Analyse par l'IA
-        elif current_state == 3:
-            
-            # Si on clique sur le bouton "Simuler l'audio"
-            if event == '-ANALYZE-':
-                texte_entendu = values['-SIMULATED_TEXT-']
-                
-                if texte_entendu.strip():
-                    # Appel au modèle BERT
-                    is_vishing, confidence = ttn.predict_vishing(texte_entendu)
-                    print(f"Analyse: '{texte_entendu}' | Vishing: {is_vishing} | Certitude: {confidence:.2f}%")
-                    
-                    if is_vishing:
-                        # Si le modèle est très sûr (> 85%), on passe au rouge
-                        if confidence >= 85:
-                            window.close()
-                            layout = create_layout_5_alert_confirmed()
-                            window = sg.Window('Vishield - Alerte', layout, size=window_size, element_justification='c', finalize=True)
-                            current_state = 5
-                        # Si le modèle détecte du vishing mais avec un petit doute, on passe au orange
-                        else:
-                            window.close()
-                            layout = create_layout_4_alert_probable()
-                            window = sg.Window('Vishield - Alerte', layout, size=window_size, element_justification='c', finalize=True)
-                            current_state = 4
-                    else:
-                        # Si tout est normal, on efface le champ texte pour la phrase suivante
-                        window['-SIMULATED_TEXT-'].update('')
-            
-            # Déclenchement manuel
-            elif event == '-MANUAL_ALERT-' or event == '-VISHING_PROBABLE-':
-                window.close()
-                layout = create_layout_4_alert_probable()
-                window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-                current_state = 4
-            
-            # Triche (bouton vert) pour tester l'écran 5
-            elif event == '-LISTENING_ICON-' or event == '-VISHING_CONFIRMED-': 
-                window.close()
-                layout = create_layout_5_alert_confirmed()
-                window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-                current_state = 5
+    def _create_layout_4_alert_probable(self):
+        anomalies = [
+            "• Modèles de discours suspects",
+            "• Création d'une situation urgente",
+            "• Demande d'informations sensibles"
+        ]
+        layout = [
+            [sg.VPush()],
+            [sg.Text('⚠', font=('Helvetica', 80), text_color='#ff6f00',
+                     background_color=THEME_COLOR, pad=(0, 0))],
+            [sg.Text('Probable tentative de vishing', font=FONT_TITLE,
+                     text_color='#1a237e', pad=(0, 20))],
+            [sg.Text("Anomalies détectées par l'IA :", font=('Helvetica', 12, 'bold'),
+                     text_color=TEXT_COLOR, justification='left', pad=((20, 0), 10))],
+        ]
+        for item in anomalies:
+            layout.append([sg.Text(item, font=FONT_MAIN, text_color=DARK_GRAY,
+                                   pad=((40, 0), 5))])
+        layout.append([sg.VPush()])
+        layout.append([
+            sg.Button('Faux positif', key='-FALSE_POS_4-',
+                      button_color=('white', DARK_GRAY),
+                      font=('Helvetica', 12, 'bold'), size=(30, 2),
+                      border_width=0, pad=(20, 40))
+        ])
+        return layout
 
-        # Retour à l'état initial (Faux positifs)
-        elif current_state == 4 and event == '-FALSE_POS_4-':
-            window.close()
-            layout = create_layout_1_off()
-            window = sg.Window('Vishield - En Attente', layout, size=window_size, element_justification='c', finalize=True)
-
-            recorder.stop_recording()
-            
-            current_state = 1
-
-        elif current_state == 5:
-            if event == '-FALSE_POS_5-' or event == '-CALLBACK-':
-                window.close()
-                layout = create_layout_1_off()
-                window = sg.Window('Vishield', layout, size=window_size, element_justification='c', finalize=True)
-
-                recorder.stop_recording()
-
-                current_state = 1
-
-    window.close()
-
-if __name__ == "__main__":
-    main()
+    def _create_layout_5_alert_confirmed(self):
+        anomalies = [
+            "• Extorsion financière détectée",
+            "• Usurpation d'identité forte",
+            "• Pression psychologique"
+        ]
+        layout = [
+            [sg.VPush()],
+            [sg.Text('⚠', font=('Helvetica', 80), text_color='#d50000',
+                     background_color=THEME_COLOR, pad=(0, 0))],
+            [sg.Text("Tentative de vishing détectée avec\ncertitude, l'appel a été interrompu",
+                     font=FONT_TITLE, text_color='#1a237e',
+                     justification='center', pad=(0, 20))],
+            [sg.Text("Anomalies détectées par l'IA :", font=('Helvetica', 12, 'bold'),
+                     text_color=TEXT_COLOR, justification='left', pad=((20, 0), 10))],
+        ]
+        for item in anomalies:
+            layout.append([sg.Text(item, font=FONT_MAIN, text_color=DARK_GRAY,
+                                   pad=((40, 0), 5))])
+        layout.append([sg.VPush()])
+        layout.append([
+            sg.Button('Faux positif', key='-FALSE_POS_5-',
+                      button_color=('white', DARK_GRAY),
+                      font=('Helvetica', 11, 'bold'), size=(15, 2),
+                      border_width=0, pad=((20, 10), 40)),
+            sg.Button('Rappeler', key='-CALLBACK-',
+                      button_color=('white', '#2962ff'),
+                      font=('Helvetica', 11, 'bold'), size=(15, 2),
+                      border_width=0, pad=((10, 20), 40))
+        ])
+        return layout
