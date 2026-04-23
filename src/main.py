@@ -6,6 +6,8 @@ from SpeechToText import Whisper
 from TextToNote import Bert
 from interface import Interface
 
+__version__ = "1.0.3" # Buildozer info
+
 
 # Text colors (console)
 DEFAULT = '\033[0m'
