@@ -1,165 +1,145 @@
+import os
+import threading
+from time import time, sleep
 import FreeSimpleGUI as sg
-from time import time
 
 from RealTimeAudioRecorder import RealTimeAudioRecorder
 from SpeechToText import Whisper
 from TextToNote import Bert
 from interface import Interface
 
-__version__ = "1.0.3" # Buildozer info
-
-
-# Text colors (console)
-DEFAULT = '\033[0m'
-RED     = '\033[91m'
-GREEN   = '\033[92m'
-YELLOW  = '\033[93m'
-BLUE    = '\033[94m'
-PURPLE  = '\033[95m'
-
-
-# --- FONCTIONS CALLBACK ---
+# --- VARIABLES GLOBALES ET CALLBACKS ---
+score_history = []
+is_active_call = False
+is_closing_audio = False # Verrou pour empecher le redemarrage trop rapide
 
 def on_new_file_saved(newFilepath):
-    """Appelé par RealTimeAudioRecorder — transmet le fichier à Whisper."""
     stt.transcribe_wav(newFilepath)
 
-
 def on_new_text_buffer(text_buffer):
-    """Appelé par Whisper — transmet la transcription à Bert."""
     ttn.predict_vishing(text_buffer)
 
-
 def on_text_analyzed(value):
-    """
-    Appelé par Bert — interprète le résultat et notifie l'interface.
-    value : tuple (is_vishing: bool, confidence: float)
-    """
-    global number_of_analyzed_buffer
+    global score_history, is_active_call
+    
+    if not is_active_call:
+        return
+        
+    is_vishing = value[0]
+    raw_confidence = value[1] 
+    
+    # Si c'est du vishing, le risque est la confiance (ex: 99%)
+    # Si ce n'est PAS du vishing, le risque est l'inverse de la confiance (ex: 100 - 99% = 1%)
+    vishing_prob = raw_confidence if is_vishing else (100 - raw_confidence)
+    
+    score_history.append(vishing_prob)
+    
+    if len(score_history) > 20:
+        score_history.pop(0)
+    
+    ui.write_event_value('-UPDATE_UI_SCORE-', vishing_prob)
 
-    is_vishing = value[0]   # Boolean
-    confidence = value[1]   # Float
-
-    if is_vishing:
-        if confidence > 50:
-            print(
-                f"{time():.2f}" + BLUE +
-                f" [App]     Buffer {number_of_analyzed_buffer}: "
-                f"Vishing attack detected with {confidence:.2f}% confidence, stopping the call"
-                + DEFAULT
-            )
-            ui.write_event_value('-VISHING_CONFIRMED-', confidence)
-        else:
-            print(
-                f"{time():.2f}" + BLUE +
-                f" [App]     Buffer {number_of_analyzed_buffer}: "
-                f"Potential vishing attack, {confidence:.2f}% confidence"
-                + DEFAULT
-            )
-            ui.write_event_value('-VISHING_PROBABLE-', confidence)
-    else:
-        print(
-            f"{time():.2f}" + BLUE +
-            f" [App]     Buffer {number_of_analyzed_buffer}: "
-            f"no vishing attack detected, {confidence:.2f}% confidence"
-            + DEFAULT
-        )
-        ui.write_event_value('-NO_VISHING-', confidence)
-
-    number_of_analyzed_buffer += 1
-
+def _stop_recorder_safely(recorder_instance):
+    """Ferme l'audio proprement et libere le verrou."""
+    global is_closing_audio
+    is_closing_audio = True
+    try:
+        recorder_instance.stop_recording()
+        # Delai technique pour permettre aux pilotes OS de liberer les peripheriques
+        sleep(0.5) 
+    finally:
+        is_closing_audio = False
 
 # --- LOGIQUE PRINCIPALE ---
 
 def main():
-    global stt, ttn, ui, number_of_analyzed_buffer
-
-    number_of_analyzed_buffer = 0
+    global stt, ttn, ui, score_history, is_active_call, is_closing_audio
     recorder = None
 
-    # Création de l'interface (état 1 — Off)
     ui = Interface()
 
-    # Chargement de Whisper
     try:
         stt = Whisper()
         stt.register_callback(on_new_text_buffer)
-    except Exception as e:
-        ui.show_error_popup(
-            f"Erreur lors du chargement de Whisper.\nErreur: {e}"
-        )
-        ui.go_to_state_1_off()
-
-    # Chargement de Bert
-    try:
         ttn = Bert()
         ttn.register_callback(on_text_analyzed)
     except Exception as e:
-        ui.show_error_popup(
-            f"Erreur lors du chargement de Bert.\nErreur: {e}"
-        )
-        ui.go_to_state_1_off()
+        ui.show_error_popup(f"Erreur d'initialisation : {e}")
 
-    # Boucle d'événements
     while True:
         event, values = ui.read(timeout=100)
 
         if event == sg.WIN_CLOSED:
             break
 
-        # --- État 1 : Off → démarrage ---
-        if ui.current_state == 1 and event == '-START-':
-            ui.go_to_state_2_transition()
-            ui.refresh()   # force l'affichage avant le chargement éventuel
+        if ui.current_state == "HOME":
+            if event == '-START_RECORDING-':
+                # Empecher le demarrage si une fermeture est en cours
+                if is_closing_audio:
+                    print("[App] Attente de la liberation du microphone...")
+                    continue
 
-            ui.go_to_state_3_listening()
+                # Reinitialiser l'etat de l'application
+                ui.auto_cutoff_threshold = values['-THRESHOLD-']
+                score_history = [0]
+                is_active_call = True
+                
+                # Vider la memoire tampon de l'IA pour ne pas melanger les appels
+                stt.bufferMemory.head = None
+                stt.bufferNumber = 0
+                
+                ui.go_to_recording()
+                recorder = RealTimeAudioRecorder()
+                recorder.register_callback(on_new_file_saved)
+                recorder.record()
+                
+            elif event == '-VIEW_HISTORY-':
+                ui.go_to_history()
 
-            recorder = RealTimeAudioRecorder()
-            recorder.register_callback(on_new_file_saved)
-            recorder.record()
+        elif ui.current_state == "RECORDING":
+            if event == '-UPDATE_UI_SCORE-':
+                if not is_active_call:
+                    continue
+                    
+                current_score = values[event]
+                ui.update_confidence_display(current_score)
+                ui.update_score_graph(score_history)
+                
+                if current_score >= ui.auto_cutoff_threshold:
+                    print(f"[AUTO-CUT] Seuil de {ui.auto_cutoff_threshold}% depasse. Coupure de l'appel.")
+                    is_active_call = False
+                    ui.go_to_alert()
+                    if recorder:
+                        threading.Thread(target=_stop_recorder_safely, args=(recorder,), daemon=True).start()
 
-        # --- État 3 : Écoute active ---
-        elif ui.current_state == 3:
+            elif event == '-STOP_RECORDING-':
+                is_active_call = False
+                ui.go_to_home()
+                if recorder:
+                    threading.Thread(target=_stop_recorder_safely, args=(recorder,), daemon=True).start()
 
-            # Simulation manuelle d'une transcription
-            if event == '-ANALYZE-':
-                texte_entendu = values['-SIMULATED_TEXT-']
-                if texte_entendu.strip():
-                    is_vishing, confidence = ttn.predict_vishing(texte_entendu)
-                    print(
-                        f"Analyse: '{texte_entendu}' | "
-                        f"Vishing: {is_vishing} | Certitude: {confidence:.2f}%"
-                    )
-                    if is_vishing:
-                        if confidence >= 85:
-                            ui.go_to_state_5_alert_confirmed()
-                        else:
-                            ui.go_to_state_4_alert_probable()
-                    else:
-                        ui.update_element('-SIMULATED_TEXT-', '')
+        elif ui.current_state == "ALERT":
+            if event == '-ALERT_OK-':
+                ui.go_to_home()
 
-            # Déclenchement manuel ou détection probable par le modèle
-            elif event in ('-MANUAL_ALERT-', '-VISHING_PROBABLE-'):
-                ui.go_to_state_4_alert_probable()
+        elif ui.current_state == "HISTORY":
+            if event == '-BACK-':
+                ui.go_to_home()
+            elif event == '-PLAY-':
+                sel = values.get('-FILE_LIST-')
+                if sel: os.startfile(os.path.join("recordings", sel[0]))
+            elif event == '-DELETE-':
+                sel = values.get('-FILE_LIST-')
+                if sel:
+                    path = os.path.join("recordings", sel[0])
+                    if os.path.exists(path):
+                        os.remove(path)
+                        ui.update_element('-FILE_LIST-', ui._get_audio_files())
 
-            # Détection confirmée par le modèle (ou clic debug sur l'icône verte)
-            elif event in ('-LISTENING_ICON-', '-VISHING_CONFIRMED-'):
-                ui.go_to_state_5_alert_confirmed()
-
-        # --- État 4 : Alerte probable → faux positif ---
-        elif ui.current_state == 4 and event == '-FALSE_POS_4-':
-            ui.go_to_state_1_off('Vishield - En Attente')
-            if recorder:
-                recorder.stop_recording()
-
-        # --- État 5 : Alerte confirmée → retour accueil ---
-        elif ui.current_state == 5 and event in ('-FALSE_POS_5-', '-CALLBACK-'):
-            ui.go_to_state_1_off()
-            if recorder:
-                recorder.stop_recording()
-
+    # Fermeture finale securisee
+    if recorder and is_active_call:
+        recorder.stop_recording()
     ui.close()
-
 
 if __name__ == "__main__":
     main()
