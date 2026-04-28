@@ -1,14 +1,22 @@
-<img src="https://github.com/JoshuaMrtl/Vishield-/blob/main/images/logo.png" alt="logo" style="width:20%; height:auto;">
-
+<p align="center">
+    <img src="https://github.com/JoshuaMrtl/Vishield-/blob/main/images/logo.png" alt="logo" style="width:20%; height:auto;">
+</p>
 
 # Vishield
 Vishield est une application permettant de protéger les utilisateur contre les attaques de vishing, c'est-à-dire les appels frauduleux.
 
-## How to use
-Start by downloading the model.safetensor file from our drive (it is too big to put on git) and put it in Vishield-/TrainedBert
+## Consignes d'utilisation
+Pour utiliser Vishield sur PC, il faut faut d'abord télécharger le fichier model.safetensor contenant le modèle de Bert (il est trop volumineux pour github) et le mettre dans le dossier Vishield-/TrainedBert.
+Lancer Vishield avec la commande :
+```
+./Vishield.sh
+```
+Cette commande va créer un environnement virtuel Python et y installer toutes les librairies nécessaire, avant de lancer Vishield.
 
-Execute ./Vishield.sh
-This script will create a virtual python environment in which it will install every required library. It will then launch Vishield
+Il est possible que ffmpeg pose problème lors de l'exécution, il faut alors vérifier qu'il est bien installé, puis exécuter la commande Powershell suivante :
+```
+./misc/add_ffmpeg_to_path.ps1
+```
 
 ## Fonctionnement
 Vishield enregistre l'audio entrant et sortant de l'appareil en temps réel, le convertit en texte à l'aide de Whisper et analyse le contenu de la conversation avec un modèle de Bert entrainé à la détection du vishing.
