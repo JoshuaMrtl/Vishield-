@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "C:\\Users\\Romaric\\.gradle\\daemon\\9.3.1\\com.example.vishield.app-mergeDebugResources-34:\\layout\\activity_main.xml",
+        "source": "C:\\Users\\Romaric\\.gradle\\daemon\\9.3.1\\com.example.vishield.app-main-37:\\layout\\activity_main.xml"
+    },
+    {
+        "merged": "com.example.vishield.app-mergeDebugResources-34:/layout/activity_main.xml",
+        "source": "com.example.vishield.app-main-37:/layout/activity_main.xml"
+    }
+]

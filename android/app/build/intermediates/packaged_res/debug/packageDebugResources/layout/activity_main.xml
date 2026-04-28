@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0D0D0D">
+
+    <!-- VUE : ATTENTE -->
+    <LinearLayout
+        android:id="@+id/view_attente"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <TextView
+            android:text="ATTENTE"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:layout_marginBottom="40dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
+        <Button
+            android:id="@+id/btn_power"
+            android:text="⏻"
+            android:textSize="32sp"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:backgroundTint="#1DB954"/>
+
+    </LinearLayout>
+
+    <!-- VUE : ECOUTE -->
+    <LinearLayout
+        android:id="@+id/view_ecoute"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:text="ÉCOUTE"
+            android:textColor="#1DB954"
+            android:textSize="28sp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"/>
+
+        <Button
+            android:id="@+id/btn_stop_ecoute"
+            android:text="Arrêter l'écoute"
+            android:textSize="16sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="24dp"
+            android:backgroundTint="#C62828"/>
+
+    </LinearLayout>
+
+    <!-- VUE : VISHING_PROBABLE -->
+    <LinearLayout
+        android:id="@+id/view_vishing_probable"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#1A1A00"
+        android:visibility="gone">
+
+        <TextView
+            android:text="⚠ VISHING PROBABLE"
+            android:textColor="#FFC107"
+            android:textSize="26sp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_gravity="center_horizontal"
+            android:gravity="center"/>
+
+        <Button
+            android:id="@+id/btn_stop_probable"
+            android:text="Arrêter l'écoute"
+            android:textSize="16sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="24dp"
+            android:backgroundTint="#C62828"/>
+
+    </LinearLayout>
+
+    <!-- VUE : VISHING_SUR -->
+    <LinearLayout
+        android:id="@+id/view_vishing_sur"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#1A0000"
+        android:visibility="gone">
+
+        <TextView
+            android:text="🚨 VISHING DÉTECTÉ"
+            android:textColor="#F44336"
+            android:textSize="26sp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_gravity="center_horizontal"
+            android:gravity="center"/>
+
+        <Button
+            android:id="@+id/btn_stop_sur"
+            android:text="Arrêter l'écoute"
+            android:textSize="16sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="24dp"
+            android:backgroundTint="#C62828"/>
+
+    </LinearLayout>
+
+</FrameLayout>

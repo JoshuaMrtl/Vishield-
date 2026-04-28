@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.vishield.app-mergeDebugResources-33:/values-port/values-port.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Romaric\\.gradle\\caches\\9.3.1\\transforms\\5c7380b50f414fe527ff2a2c8a39a3a0\\workspace\\transformed\\appcompat-1.7.0\\res\\values-port\\values-port.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "55",
+                        "endOffsets": "106"
+                    }
+                }
+            ]
+        }
+    ]
+}
