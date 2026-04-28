@@ -1,4 +1,6 @@
-<img src="https://github.com/JoshuaMrtl/Vishield-/blob/main/images/logo.png" alt="logo">
+<img src="https://github.com/JoshuaMrtl/Vishield-/blob/main/images/logo.png" alt="logo" style="width:20%; height:auto;">
+
+
 # Vishield
 Vishield est une application permettant de protéger les utilisateur contre les attaques de vishing, c'est-à-dire les appels frauduleux.
 
