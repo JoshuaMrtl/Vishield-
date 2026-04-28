@@ -1,3 +1,4 @@
+<img src="https://github.com/JoshuaMrtl/Vishield-/blob/main/images/logo.png" alt="logo">
 # Vishield
 Vishield est une application permettant de protéger les utilisateur contre les attaques de vishing, c'est-à-dire les appels frauduleux.
 
@@ -26,5 +27,7 @@ La version Windows - Linux est codée en python, aidée d'un script shell permet
 La version Android est codée en Kotlin.
 
 Elles utilisent toutes les 2 le paradigme objet et la même architecture : 
+
+<img src="https://github.com/JoshuaMrtl/Vishield-/blob/main/images/archi_prog.png?raw=true" alt="schema de l'architecture du logiciel">
 
 
