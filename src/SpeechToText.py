@@ -44,7 +44,7 @@ class Whisper :
         if self.whisper is None:
             raise RuntimeError("Whisper n'est pas initialisé. Appelez init_whisper() d'abord.")
         
-        segments, _ = self.whisper.transcribe(wav_path, language="fr")
+        segments, _ = self.whisper.transcribe(wav_path, task="translate")
         # text_buffer = "".join(segment.text.strip() for segment in segments)
 
         # Retourne le texte des 4 derniers buffers audio

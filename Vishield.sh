@@ -106,6 +106,8 @@ fi
 
 install_and_check "faster_whisper"  "faster-whisper"  "faster-whisper"
 install_and_check "safetensors"     "safetensors"     "safetensors"
+install_and_check "PIL"             "Pillow"          "Pillow"
+
 # soundcard a un bug avec sys.argv quand importé via -c : on lui passe un argv fictif
 "$VENV_PYTHON" -c "import sys; sys.argv = ['vishield', 'dummy']; import soundcard" 2>/dev/null
 if [ $? -ne 0 ]; then
